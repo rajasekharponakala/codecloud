@@ -1,0 +1,57 @@
+id: docker-basics
+title: "Docker: images, containers and ports"
+description: Pull images, run and inspect containers, publish ports and build your own image — on a private Docker engine.
+difficulty: beginner
+duration_minutes: 45
+tags: [docker, containers]
+environment:
+  # Docker-in-Docker: each learner gets a private engine inside their lab container.
+  image: docker:29-dind
+  command: []
+  privileged: true
+  memory_mb: 1024
+  cpus: 1
+  shell: /bin/sh
+  hostname: docker-host
+  env:
+    DOCKER_TLS_CERTDIR: ""
+  ready_check: docker info >/dev/null 2>&1
+  ready_timeout_seconds: 90
+tasks:
+  - id: image-quiz
+    type: quiz
+    prompt: What is the difference between an image and a container?
+    options:
+      - They are the same thing
+      - An image is a read-only template; a container is a running (or stopped) instance of it
+      - A container is a template; an image is a running instance
+      - Images only exist on Docker Hub
+    answer: 1
+  - id: pull-nginx
+    type: task
+    prompt: Pull the `nginx:alpine` image.
+    check: |
+      docker image inspect nginx:alpine >/dev/null 2>&1 || { echo "nginx:alpine is not present locally"; exit 1; }
+    solution: docker pull nginx:alpine
+  - id: run-web
+    type: task
+    prompt: Run a detached container named `web` from `nginx:alpine`, publishing container port 80 on host port 8080.
+    check: |
+      [ "$(docker inspect -f '{{.State.Running}}' web 2>/dev/null)" = "true" ] || { echo "no running container named web"; exit 1; }
+      docker inspect -f '{{.Config.Image}}' web | grep -q '^nginx:alpine$' || { echo "web is not running nginx:alpine"; exit 1; }
+      wget -q -O - http://127.0.0.1:8080 | grep -qi nginx || { echo "nothing answers on port 8080"; exit 1; }
+    solution: docker run -d --name web -p 8080:80 nginx:alpine
+  - id: build-image
+    type: task
+    prompt: |
+      Build an image tagged `hello:v1` from a Dockerfile in `/root/hello` that is based on
+      `alpine:3.20` and, when run, prints `hello from codecloud`.
+    hint: "`FROM alpine:3.20` and `CMD [\"echo\", \"hello from codecloud\"]`"
+    check: |
+      docker image inspect hello:v1 >/dev/null 2>&1 || { echo "image hello:v1 not found"; exit 1; }
+      out=$(docker run --rm hello:v1)
+      [ "$out" = "hello from codecloud" ] || { echo "hello:v1 printed: $out"; exit 1; }
+    solution: |
+      mkdir -p /root/hello
+      printf 'FROM alpine:3.20\nCMD ["echo", "hello from codecloud"]\n' > /root/hello/Dockerfile
+      docker build -t hello:v1 /root/hello

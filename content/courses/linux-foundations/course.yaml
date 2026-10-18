@@ -1,0 +1,13 @@
+id: linux-foundations
+title: Linux Foundations
+description: The command line skills every DevOps engineer uses daily — files, permissions, processes and text processing.
+level: beginner
+lessons:
+  - id: shell-and-filesystem
+    title: The shell and the filesystem
+    file: lessons/01-shell-and-filesystem.md
+    lab: linux-files
+  - id: processes-and-pipes
+    title: Processes, pipes and text tools
+    file: lessons/02-processes-and-pipes.md
+    lab: linux-processes

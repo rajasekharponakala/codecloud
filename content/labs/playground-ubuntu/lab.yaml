@@ -1,0 +1,12 @@
+id: playground-ubuntu
+kind: playground
+title: Ubuntu 24.04 playground
+description: A disposable Ubuntu machine with git, vim, curl, jq, Python and networking tools. Root access, one hour.
+difficulty: beginner
+duration_minutes: 60
+tags: [linux, playground]
+environment:
+  build: image
+  memory_mb: 512
+  cpus: 1
+  hostname: playground

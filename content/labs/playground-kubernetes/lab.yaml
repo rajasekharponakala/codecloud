@@ -1,0 +1,19 @@
+id: playground-kubernetes
+kind: playground
+title: Kubernetes playground (k3s)
+description: A single-node Kubernetes cluster with `kubectl` ready to go. Experiment freely for an hour.
+difficulty: intermediate
+duration_minutes: 60
+tags: [kubernetes, playground]
+environment:
+  image: rancher/k3s:v1.36.5-k3s1
+  command: [server, --disable=traefik, --disable=metrics-server, --write-kubeconfig-mode=644, "--kubelet-arg=fail-cgroupv1=false"]
+  privileged: true
+  memory_mb: 2048
+  cpus: 2
+  pids_limit: 4096
+  shell: /bin/sh
+  env:
+    KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+  ready_check: kubectl get nodes --no-headers 2>/dev/null | grep -q ' Ready'
+  ready_timeout_seconds: 240

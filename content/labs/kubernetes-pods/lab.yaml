@@ -1,0 +1,55 @@
+id: kubernetes-pods
+title: "Kubernetes: pods, deployments and services"
+description: Work against a real single-node Kubernetes cluster (k3s). Create pods and deployments, scale them, and expose them with a service.
+difficulty: intermediate
+duration_minutes: 60
+tags: [kubernetes]
+environment:
+  image: rancher/k3s:v1.36.5-k3s1
+  command: [server, --disable=traefik, --disable=metrics-server, --write-kubeconfig-mode=644, "--kubelet-arg=fail-cgroupv1=false"]
+  privileged: true
+  memory_mb: 2048
+  cpus: 2
+  pids_limit: 4096
+  shell: /bin/sh
+  hostname: controlplane
+  env:
+    KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+  ready_check: kubectl get nodes --no-headers 2>/dev/null | grep -q ' Ready' && kubectl get serviceaccount default >/dev/null 2>&1
+  ready_timeout_seconds: 240
+tasks:
+  - id: nodes-quiz
+    type: quiz
+    prompt: How many nodes does this cluster have? Use `kubectl get nodes`.
+    options: ["1", "2", "3", "5"]
+    answer: 0
+  - id: pod
+    type: task
+    prompt: Create a pod named `nginx-pod` using the image `nginx:alpine` in the `default` namespace.
+    check: |
+      img=$(kubectl get pod nginx-pod -o jsonpath='{.spec.containers[0].image}' 2>/dev/null) || { echo "pod nginx-pod not found"; exit 1; }
+      [ "$img" = "nginx:alpine" ] || { echo "nginx-pod uses image $img"; exit 1; }
+    solution: kubectl run nginx-pod --image=nginx:alpine
+  - id: deployment
+    type: task
+    prompt: Create a deployment named `frontend` with 3 replicas of `nginx:alpine`, labelled `app=frontend`.
+    check: |
+      kubectl get deployment frontend >/dev/null 2>&1 || { echo "deployment frontend not found"; exit 1; }
+      [ "$(kubectl get deployment frontend -o jsonpath='{.spec.replicas}')" = "3" ] || { echo "frontend does not have 3 replicas"; exit 1; }
+      kubectl get deployment frontend -o jsonpath='{.spec.template.spec.containers[0].image}' | grep -qx 'nginx:alpine' || { echo "wrong image"; exit 1; }
+      [ "$(kubectl get deployment frontend -o jsonpath='{.spec.selector.matchLabels.app}')" = "frontend" ] || { echo "selector app=frontend missing"; exit 1; }
+    solution: kubectl create deployment frontend --image=nginx:alpine --replicas=3
+  - id: scale
+    type: task
+    prompt: Scale `frontend` to 5 replicas.
+    check: |
+      [ "$(kubectl get deployment frontend -o jsonpath='{.spec.replicas}' 2>/dev/null)" = "5" ] || { echo "frontend is not scaled to 5"; exit 1; }
+    solution: kubectl scale deployment frontend --replicas=5
+  - id: service
+    type: task
+    prompt: Expose `frontend` with a `ClusterIP` service named `frontend-svc` on port 80.
+    check: |
+      [ "$(kubectl get svc frontend-svc -o jsonpath='{.spec.type}' 2>/dev/null)" = "ClusterIP" ] || { echo "ClusterIP service frontend-svc not found"; exit 1; }
+      kubectl get svc frontend-svc -o jsonpath='{.spec.ports[0].port}' | grep -qx 80 || { echo "service port is not 80"; exit 1; }
+      [ "$(kubectl get svc frontend-svc -o jsonpath='{.spec.selector.app}')" = "frontend" ] || { echo "service does not select app=frontend"; exit 1; }
+    solution: kubectl expose deployment frontend --name=frontend-svc --port=80

@@ -1,0 +1,20 @@
+# Single-host deployment. The platform drives the host's Docker Engine to create one
+# disposable container per lab session, so it needs the Docker socket.
+# Anything with this socket is root-equivalent on the host: run on a dedicated lab host,
+# and prefer a sandboxed runtime for lab containers (see docs/architecture.md#isolation).
+services:
+  codecloud:
+    build: .
+    ports:
+      - "8080:8080"
+    environment:
+      CODECLOUD_SESSION_SECRET: ${CODECLOUD_SESSION_SECRET:?set a random 64-char secret}
+      CODECLOUD_COOKIE_SECURE: ${CODECLOUD_COOKIE_SECURE:-false}
+      # CODECLOUD_LAB_RUNTIME: sysbox-runc   # or runsc (gVisor)
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - codecloud-data:/data
+    restart: unless-stopped
+
+volumes:
+  codecloud-data:

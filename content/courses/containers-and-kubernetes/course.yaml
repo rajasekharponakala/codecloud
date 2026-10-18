@@ -1,0 +1,13 @@
+id: containers-and-kubernetes
+title: Containers and Kubernetes
+description: From your first docker run to deployments and services on a real Kubernetes cluster.
+level: intermediate
+lessons:
+  - id: docker-fundamentals
+    title: Docker fundamentals
+    file: lessons/01-docker.md
+    lab: docker-basics
+  - id: kubernetes-workloads
+    title: Kubernetes workloads and services
+    file: lessons/02-kubernetes.md
+    lab: kubernetes-pods

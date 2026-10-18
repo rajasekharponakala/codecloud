@@ -1,0 +1,44 @@
+id: linux-processes
+title: "Linux: processes, pipes and text processing"
+description: Inspect running processes, stop a runaway one, and build pipelines with grep, sort and wc.
+difficulty: beginner
+duration_minutes: 30
+tags: [linux]
+environment:
+  image: ubuntu:24.04
+  memory_mb: 256
+  cpus: 0.5
+  setup: |
+    mkdir -p /var/log/shop
+    for i in $(seq 1 40); do
+      if [ $((i % 7)) -eq 0 ]; then echo "2026-01-0$((i % 9 + 1)) ERROR payment failed order=$i"; else echo "2026-01-0$((i % 9 + 1)) INFO order=$i ok"; fi
+    done > /var/log/shop/orders.log
+    nohup bash -c 'exec -a runaway-worker sleep 100000' >/dev/null 2>&1 &
+tasks:
+  - id: ps-quiz
+    type: quiz
+    prompt: Which signal does `kill` send when you do not specify one?
+    options: [SIGKILL, SIGHUP, SIGTERM, SIGINT]
+    answer: 2
+  - id: kill-runaway
+    type: task
+    prompt: A process named `runaway-worker` is running. Find it and stop it.
+    hint: "`ps aux | grep runaway` or `pgrep -f`"
+    check: |
+      if ps -eo args | grep -q '^runaway-worker'; then echo "runaway-worker is still running"; exit 1; fi
+    solution: pkill -f runaway-worker
+  - id: error-count
+    type: task
+    prompt: Write the number of `ERROR` lines in `/var/log/shop/orders.log` into `/root/errors.txt` (just the number).
+    check: |
+      expected=$(grep -c ERROR /var/log/shop/orders.log)
+      actual=$(tr -d '[:space:]' < /root/errors.txt 2>/dev/null)
+      [ "$actual" = "$expected" ] || { echo "/root/errors.txt contains '${actual}'"; exit 1; }
+    solution: grep -c ERROR /var/log/shop/orders.log > /root/errors.txt
+  - id: failed-orders
+    type: task
+    prompt: Save the order ids (just the numbers) of all failed payments to `/root/failed.txt`, one per line, sorted numerically.
+    check: |
+      expected=$(grep ERROR /var/log/shop/orders.log | sed 's/.*order=//' | sort -n)
+      [ "$(cat /root/failed.txt 2>/dev/null)" = "$expected" ] || { echo "/root/failed.txt does not match the expected list"; exit 1; }
+    solution: grep ERROR /var/log/shop/orders.log | sed 's/.*order=//' | sort -n > /root/failed.txt

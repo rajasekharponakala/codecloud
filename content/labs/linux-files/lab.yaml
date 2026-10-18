@@ -1,0 +1,68 @@
+id: linux-files
+title: "Linux: files, directories and permissions"
+description: Navigate the filesystem, create files and directories, and lock them down with permissions and ownership.
+difficulty: beginner
+duration_minutes: 30
+tags: [linux]
+environment:
+  image: ubuntu:24.04
+  memory_mb: 256
+  cpus: 0.5
+  setup: |
+    mkdir -p /root/reports /opt/app/logs
+    printf 'alpha\nbeta\ngamma\n' > /root/reports/q1.txt
+    for i in 1 2 3 4 5; do echo "log line $i" > /opt/app/logs/app-$i.log; done
+tasks:
+  - id: pwd-quiz
+    type: quiz
+    prompt: Which command prints the directory you are currently in?
+    options: [ls, pwd, cd, whoami]
+    answer: 1
+    explanation: "`pwd` prints the working directory."
+  - id: count-logs
+    type: quiz
+    prompt: How many `.log` files are in `/opt/app/logs`? Use the terminal to find out.
+    options: ["3", "4", "5", "6"]
+    answer: 2
+  - id: make-dir
+    type: task
+    prompt: Create the directory `/root/projects/website` (including any missing parents).
+    hint: mkdir has a flag that creates parent directories.
+    check: |
+      test -d /root/projects/website || { echo "/root/projects/website does not exist"; exit 1; }
+    solution: mkdir -p /root/projects/website
+  - id: write-file
+    type: task
+    prompt: Create `/root/projects/website/index.html` containing exactly the line `Hello CodeCloud`.
+    check: |
+      f=/root/projects/website/index.html
+      test -f "$f" || { echo "$f does not exist"; exit 1; }
+      [ "$(cat "$f")" = "Hello CodeCloud" ] || { echo "unexpected content: $(head -c 80 "$f")"; exit 1; }
+    solution: echo "Hello CodeCloud" > /root/projects/website/index.html
+  - id: copy-report
+    type: task
+    prompt: Copy `/root/reports/q1.txt` to `/root/reports/q1.bak`, keeping the original.
+    check: |
+      test -f /root/reports/q1.txt || { echo "the original file is gone"; exit 1; }
+      cmp -s /root/reports/q1.txt /root/reports/q1.bak || { echo "q1.bak is missing or differs from q1.txt"; exit 1; }
+    solution: cp /root/reports/q1.txt /root/reports/q1.bak
+  - id: permissions
+    type: task
+    prompt: |
+      Set the permissions of `/root/reports/q1.txt` so the owner can read and write,
+      the group can only read, and others have no access (`rw-r-----`).
+    hint: In octal, read=4, write=2, execute=1.
+    check: |
+      mode=$(stat -c %a /root/reports/q1.txt)
+      [ "$mode" = "640" ] || { echo "current mode is $mode"; exit 1; }
+    solution: chmod 640 /root/reports/q1.txt
+  - id: user-owner
+    type: task
+    prompt: Create a user named `deploy`, then make it the owner of `/opt/app` and everything inside it.
+    check: |
+      id deploy >/dev/null 2>&1 || { echo "user deploy does not exist"; exit 1; }
+      bad=$(find /opt/app ! -user deploy | head -n 3)
+      [ -z "$bad" ] || { echo "not owned by deploy: $bad"; exit 1; }
+    solution: |
+      useradd deploy
+      chown -R deploy /opt/app
