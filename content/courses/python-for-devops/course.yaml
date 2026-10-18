@@ -1,0 +1,15 @@
+id: python-for-devops
+title: Python for DevOps
+description: Automate operational work with Python — files, JSON, command-line arguments, subprocesses and HTTP.
+level: beginner
+category: programming
+tags: [python, automation, scripting]
+duration_hours: 4
+lessons:
+  - id: python-basics
+    title: Python essentials for operators
+    file: lessons/01-python-basics.md
+  - id: automation
+    title: Files, JSON, subprocesses and exit codes
+    file: lessons/02-automation.md
+    lab: python-basics

@@ -1,0 +1,96 @@
+id: github-actions-workflows
+title: "CI/CD: GitHub Actions workflows"
+description: Write CI pipelines as code — triggers, jobs, matrices, caching and scheduled runs — and lint them with actionlint.
+difficulty: intermediate
+duration_minutes: 45
+tags: [cicd, github-actions]
+environment:
+  build: ../../images/workstation
+  memory_mb: 256
+  cpus: 0.5
+  setup: |
+    mkdir -p /root/project
+    cd /root/project
+    printf 'test:\n\t@echo "all tests passed"\n' > Makefile
+    printf '{"name": "project", "version": "1.0.0", "scripts": {"test": "make test"}}\n' > package.json
+tasks:
+  - id: trigger-quiz
+    type: quiz
+    prompt: Which trigger runs a workflow on a timetable?
+    options: [push, workflow_dispatch, schedule, pull_request]
+    answer: 2
+  - id: ci
+    type: task
+    prompt: |
+      Create `/root/project/.github/workflows/ci.yml` named `CI` that runs on `push` and
+      `pull_request` to `main`, with a job `test` on `ubuntu-latest` whose steps are
+      `actions/checkout@v7` and then `make test`. It must pass `actionlint`.
+    check: |
+      f=/root/project/.github/workflows/ci.yml
+      [ -f "$f" ] || { echo "$f does not exist"; exit 1; }
+      actionlint "$f" || exit 1
+      [ "$(yq '.name' "$f")" = "CI" ] || { echo "workflow name is not CI"; exit 1; }
+      [ "$(yq '.on.push.branches[0]' "$f")" = "main" ] || { echo "push to main is not a trigger"; exit 1; }
+      [ "$(yq '.on.pull_request.branches[0]' "$f")" = "main" ] || { echo "pull_request to main is not a trigger"; exit 1; }
+      [ "$(yq '.jobs.test.runs-on' "$f")" = "ubuntu-latest" ] || { echo "job test must run on ubuntu-latest"; exit 1; }
+      yq '.jobs.test.steps[].uses' "$f" | grep -q '^actions/checkout@' || { echo "job test does not check out the code"; exit 1; }
+      yq '.jobs.test.steps[].run' "$f" | grep -q 'make test' || { echo "job test does not run make test"; exit 1; }
+    solution: |
+      mkdir -p /root/project/.github/workflows
+      cat > /root/project/.github/workflows/ci.yml <<'YAML'
+      name: CI
+      on:
+        push:
+          branches: [main]
+        pull_request:
+          branches: [main]
+      jobs:
+        test:
+          runs-on: ubuntu-latest
+          steps:
+            - uses: actions/checkout@v7
+            - run: make test
+      YAML
+  - id: matrix
+    type: task
+    prompt: |
+      Make job `test` run on a matrix of `os` = `ubuntu-latest` and `macos-latest`
+      (use `runs-on: ${{ matrix.os }}`), without cancelling the other leg when one fails.
+    hint: "`strategy.matrix.os` and `strategy.fail-fast: false`"
+    check: |
+      f=/root/project/.github/workflows/ci.yml
+      actionlint "$f" || exit 1
+      [ "$(yq '.jobs.test.strategy.matrix.os | length' "$f")" = "2" ] || { echo "matrix.os must have two entries"; exit 1; }
+      yq '.jobs.test.strategy.matrix.os[]' "$f" | grep -qx macos-latest || { echo "macos-latest is missing from the matrix"; exit 1; }
+      [ "$(yq '.jobs.test.strategy.fail-fast' "$f")" = "false" ] || { echo "fail-fast must be false"; exit 1; }
+      yq '.jobs.test.runs-on' "$f" | grep -q 'matrix.os' || { echo "runs-on must use matrix.os"; exit 1; }
+    solution: |
+      f=/root/project/.github/workflows/ci.yml
+      yq -i '.jobs.test.strategy = {"fail-fast": false, "matrix": {"os": ["ubuntu-latest", "macos-latest"]}}' "$f"
+      yq -i '.jobs.test.runs-on = "${{ matrix.os }}"' "$f"
+  - id: nightly
+    type: task
+    prompt: |
+      Create `/root/project/.github/workflows/nightly.yml` that runs `make test` on
+      `ubuntu-latest` every day at 03:15 UTC and can also be started manually.
+    check: |
+      f=/root/project/.github/workflows/nightly.yml
+      [ -f "$f" ] || { echo "$f does not exist"; exit 1; }
+      actionlint "$f" || exit 1
+      [ "$(yq '.on.schedule[0].cron' "$f")" = "15 3 * * *" ] || { echo "cron must be '15 3 * * *'"; exit 1; }
+      [ "$(yq '.on | has("workflow_dispatch")' "$f")" = "true" ] || { echo "workflow_dispatch trigger missing"; exit 1; }
+      yq '.jobs[].steps[].run' "$f" | grep -q 'make test' || { echo "the workflow does not run make test"; exit 1; }
+    solution: |
+      cat > /root/project/.github/workflows/nightly.yml <<'YAML'
+      name: Nightly
+      on:
+        schedule:
+          - cron: "15 3 * * *"
+        workflow_dispatch:
+      jobs:
+        test:
+          runs-on: ubuntu-latest
+          steps:
+            - uses: actions/checkout@v7
+            - run: make test
+      YAML

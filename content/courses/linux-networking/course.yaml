@@ -1,0 +1,15 @@
+id: linux-networking
+title: Linux Networking Essentials
+description: IP addressing, ports and sockets, DNS and HTTP — and the commands to inspect and troubleshoot each layer.
+level: beginner
+category: networking
+tags: [networking, dns, http, tcp]
+duration_hours: 3
+lessons:
+  - id: addresses-and-ports
+    title: Interfaces, addresses, routes and ports
+    file: lessons/01-addresses-and-ports.md
+  - id: dns-and-http
+    title: Name resolution and HTTP troubleshooting
+    file: lessons/02-dns-and-http.md
+    lab: linux-networking

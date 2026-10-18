@@ -89,29 +89,152 @@ async function loginPage() {
   );
 }
 
-async function coursesPage() {
-  const [{ courses }, progress] = await Promise.all([api('/courses'), me ? api('/progress') : { lessons: {} }]);
-  render(
-    h('h1', {}, 'Courses'),
-    h('p', { class: 'muted' }, 'Learn by doing: every course pairs short lessons with hands-on, auto-graded labs.'),
+const catalogFilters = { q: '', category: 'all', provider: 'all' };
+
+function courseCard(c, done, categories) {
+  return h(
+    'div',
+    { class: 'card' },
+    h('h3', {}, c.title),
     h(
       'div',
-      { class: 'grid' },
-      courses.map((c) =>
-        h(
-          'div',
-          { class: 'card' },
-          h('h3', {}, c.title),
-          h('span', { class: 'pill' }, c.level),
-          h('p', { class: 'muted' }, c.description),
+      { class: 'pills' },
+      h('span', { class: 'pill' }, categories.get(c.category) ?? c.category),
+      h('span', { class: 'pill' }, c.level),
+      c.lab_count > 0 && h('span', { class: 'pill' }, `${c.lab_count} lab${c.lab_count === 1 ? '' : 's'}`),
+    ),
+    h('p', { class: 'muted' }, c.description),
+    h(
+      'div',
+      { class: 'actions' },
+      h('a', { href: `#/courses/${c.id}` }, 'Open course'),
+      h('span', { class: 'muted' }, `${done}/${c.lesson_count} lessons`),
+    ),
+  );
+}
+
+function externalCard(c, categories, labTitles) {
+  return h(
+    'div',
+    { class: 'card external' },
+    h('h3', {}, c.title),
+    h(
+      'div',
+      { class: 'pills' },
+      h('span', { class: 'pill provider' }, c.provider === 'edx' ? 'edX' : c.provider),
+      h('span', { class: 'pill' }, categories.get(c.category) ?? c.category),
+      c.org && h('span', { class: 'pill' }, c.org),
+    ),
+    c.short_description && h('p', { class: 'muted' }, c.short_description),
+    c.related_labs.length > 0 &&
+      h(
+        'p',
+        { class: 'muted' },
+        'Practise it: ',
+        c.related_labs.slice(0, 3).flatMap((id, i) => [i ? ', ' : '', h('a', { href: `#/labs/${id}` }, labTitles.get(id) ?? id)]),
+      ),
+    h('div', { class: 'actions' }, h('a', { href: c.url, target: '_blank', rel: 'noopener noreferrer' }, 'View on edX ↗')),
+  );
+}
+
+async function catalogPage() {
+  const [catalog, progress, { labs }] = await Promise.all([
+    api('/catalog'),
+    me ? api('/progress') : { lessons: {} },
+    api('/labs'),
+  ]);
+  const categories = new Map(catalog.categories.map((c) => [c.id, c.title]));
+  const labTitles = new Map(labs.map((l) => [l.id, l.title]));
+  const courseTitles = new Map(catalog.courses.map((c) => [c.id, c.title]));
+  const results = h('div');
+
+  const matches = (text) => text.toLowerCase().includes(catalogFilters.q.toLowerCase());
+  const update = () => {
+    const f = catalogFilters;
+    const inCategory = (c) => f.category === 'all' || c.category === f.category;
+    const native = f.provider === 'external' ? [] : catalog.courses.filter(
+      (c) => inCategory(c) && matches([c.title, c.description, ...c.tags].join(' ')),
+    );
+    const external = f.provider === 'native' ? [] : catalog.external.filter(
+      (c) => inCategory(c) && matches([c.title, c.org, c.short_description].join(' ')),
+    );
+    results.replaceChildren(
+      h('p', { class: 'muted' }, `${native.length} CodeCloud courses · ${external.length} edX courses`),
+      native.length > 0 && h('div', { class: 'grid' }, native.map((c) => courseCard(c, progress.lessons[c.id]?.length ?? 0, categories))),
+      external.length > 0 && h('h2', {}, 'From edX'),
+      catalog.external.length === 0 && f.provider === 'external' &&
+        h('p', { class: 'muted' }, 'No edX courses yet — they are added by the weekly catalog sync (scripts/sync-edx.js).'),
+      external.length > 0 && h('div', { class: 'grid' }, external.map((c) => externalCard(c, categories, labTitles))),
+    );
+  };
+
+  const chip = (key, value, label) =>
+    h('button', {
+      class: `chip ${catalogFilters[key] === value ? 'active' : ''}`,
+      onclick: (event) => {
+        catalogFilters[key] = value;
+        event.target.parentElement.querySelectorAll('.chip').forEach((el) => el.classList.remove('active'));
+        event.target.classList.add('active');
+        update();
+      },
+    }, label);
+
+  const search = h('input', { type: 'search', placeholder: 'Search courses…', value: catalogFilters.q, oninput: (e) => {
+    catalogFilters.q = e.target.value;
+    update();
+  } });
+
+  render(
+    h('h1', {}, 'Course catalog'),
+    h('p', { class: 'muted' }, 'Learn by doing: CodeCloud courses pair short lessons with hands-on, auto-graded labs. Courses from edX are listed alongside.'),
+    catalog.paths.length > 0 && h('h2', {}, 'Learning paths'),
+    catalog.paths.length > 0 &&
+      h(
+        'div',
+        { class: 'grid' },
+        catalog.paths.map((p) =>
           h(
             'div',
-            { class: 'actions' },
-            h('a', { href: `#/courses/${c.id}` }, 'Open course'),
-            h('span', { class: 'muted' }, `${progress.lessons[c.id]?.length ?? 0}/${c.lesson_count} lessons`),
+            { class: 'card path' },
+            h('h3', {}, p.title),
+            h('p', { class: 'muted' }, p.description),
+            h('p', { class: 'muted' }, p.courses.map((id) => courseTitles.get(id)).join(' → ')),
+            h('div', { class: 'actions' }, h('a', { href: `#/paths/${p.id}` }, `Follow path (${p.courses.length} courses)`)),
           ),
         ),
       ),
+    h('h2', {}, 'All courses'),
+    h('div', { class: 'filters' }, search),
+    h('div', { class: 'filters' }, chip('category', 'all', 'All topics'), catalog.categories.map((c) => chip('category', c.id, c.title))),
+    h('div', { class: 'filters' }, chip('provider', 'all', 'All providers'), chip('provider', 'native', 'CodeCloud'), chip('provider', 'external', 'edX')),
+    results,
+  );
+  update();
+}
+
+async function pathPage(pathId) {
+  const [catalog, progress] = await Promise.all([api('/catalog'), me ? api('/progress') : { lessons: {} }]);
+  const learningPath = catalog.paths.find((p) => p.id === pathId);
+  if (!learningPath) throw new Error('unknown learning path');
+  const courses = new Map(catalog.courses.map((c) => [c.id, c]));
+  render(
+    h('a', { href: '#/' }, '← Catalog'),
+    h('h1', {}, learningPath.title),
+    h('p', { class: 'muted' }, learningPath.description),
+    h(
+      'ol',
+      { class: 'lessons' },
+      learningPath.courses.map((id) => {
+        const c = courses.get(id);
+        const done = progress.lessons[id]?.length ?? 0;
+        return h(
+          'li',
+          {},
+          h('span', {}, done === c.lesson_count ? '✅' : done ? '🟡' : '⬜'),
+          h('a', { href: `#/courses/${id}` }, c.title),
+          h('span', { class: 'muted' }, `${done}/${c.lesson_count} lessons`),
+        );
+      }),
     ),
   );
 }
@@ -120,7 +243,7 @@ async function coursePage(courseId) {
   const [{ course }, progress] = await Promise.all([api(`/courses/${courseId}`), me ? api('/progress') : { lessons: {} }]);
   const done = new Set(progress.lessons[courseId] ?? []);
   render(
-    h('a', { href: '#/' }, '← Courses'),
+    h('a', { href: '#/' }, '← Catalog'),
     h('h1', {}, course.title),
     h('p', { class: 'muted' }, course.description),
     h(
@@ -388,9 +511,10 @@ async function route() {
     if (parts[0] === 'labs' && parts[1]) return await labPage(parts[1]);
     if (parts[0] === 'labs') return await labsPage('lab');
     if (parts[0] === 'playgrounds') return await labsPage('playground');
+    if (parts[0] === 'paths' && parts[1]) return await pathPage(parts[1]);
     if (parts[0] === 'courses' && parts[2]) return await lessonPage(parts[1], parts[2]);
     if (parts[0] === 'courses' && parts[1]) return await coursePage(parts[1]);
-    return await coursesPage();
+    return await catalogPage();
   } catch (err) {
     render(h('p', { class: 'error' }, err.message));
   }

@@ -49,6 +49,15 @@ describe('HTTP API', () => {
     expect(lesson.html).toContain('<h1>');
   });
 
+  it('serves the whole catalog with paths and categories', async () => {
+    const catalog = (await app.inject('/api/catalog')).json();
+    expect(catalog.courses.length).toBeGreaterThanOrEqual(20);
+    expect(catalog.paths.map((p) => p.id)).toContain('kubernetes-administrator');
+    const categories = new Set(catalog.categories.map((c) => c.id));
+    for (const course of catalog.courses) expect(categories.has(course.category)).toBe(true);
+    expect(Array.isArray(catalog.external)).toBe(true);
+  });
+
   it('requires sign-in for labs', async () => {
     expect((await app.inject({ method: 'POST', url: '/api/labs/linux-files/sessions' })).statusCode).toBe(401);
   });

@@ -74,3 +74,11 @@ h1 { font-size: 26px; margin: 0 0 6px; }
   .lab { grid-template-columns: 1fr; height: auto; }
   .terminal { height: 60vh; }
 }
+h2 { font-size: 19px; margin: 28px 0 0; }
+.pills { display: flex; flex-wrap: wrap; gap: 6px; }
+.pill.provider { border-color: var(--accent); color: var(--accent); }
+.filters { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.filters input { max-width: 420px; }
+.chip { border-radius: 99px; padding: 3px 12px; font-size: 13px; }
+.chip.active { background: var(--accent); border-color: var(--accent); color: var(--accent-text); }
+.card.path { border-left: 4px solid var(--accent); }

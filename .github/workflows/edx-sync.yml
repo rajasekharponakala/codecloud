@@ -1,0 +1,43 @@
+# Weekly refresh of the edX courses shown in the catalog. Fetches the public Open edX Course API,
+# rebuilds content/external/edx.json and opens a pull request when the list changed.
+# Requires "Allow GitHub Actions to create and approve pull requests" in the repository settings.
+name: edX catalog sync
+
+on:
+  schedule:
+    - cron: "37 5 * * 0"   # Sundays, 05:37 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: edx-sync
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: node scripts/sync-edx.js
+      - run: npm run validate-content
+      - run: npm test
+      - uses: peter-evans/create-pull-request@v8
+        with:
+          branch: automation/edx-catalog
+          delete-branch: true
+          commit-message: "Update edX course catalog"
+          title: "Update edX course catalog"
+          body: |
+            Automated weekly refresh of `content/external/edx.json` from the Open edX Course API
+            (sources in `content/external/edx-sources.yaml`).
+          labels: automation, catalog
+          add-paths: content/external/edx.json

@@ -36,6 +36,10 @@ frames, and output comes back as binary frames.
 A pass is sticky: a later failing attempt does not erase it. It is also recorded in
 `lab_progress`, which outlives the session.
 
+**Catalog.** `GET /api/catalog` returns categories and learning paths (`content/catalog.yaml`),
+native courses, and external courses synced from edX (`content/external/*.json`, see
+[catalog.md](catalog.md)).
+
 **Lifecycle.** Sessions expire after `duration_minutes` and can be extended
 `CODECLOUD_MAX_EXTENSIONS` times. Every 30 s a reaper expires overdue sessions and deletes any
 managed container without an active session, for example one left by a crash. On restart,
@@ -61,7 +65,8 @@ kind: lab                 # or "playground" (no tasks)
 title: My lab
 duration_minutes: 30
 environment:
-  image: ubuntu:24.04     # or `build: image` to build ./image/Dockerfile
+  image: ubuntu:24.04     # or `build: ../../images/workstation` (shared Dockerfile directory)
+  # entrypoint: [...]     # override the image ENTRYPOINT
   # command:  omit → idle with `sleep infinity`; [] → image's own CMD; or an explicit argv
   privileged: false       # needed for Docker-in-Docker and k3s
   memory_mb: 512
@@ -115,6 +120,7 @@ root on the host. For anything beyond a trusted classroom:
 | `CODECLOUD_LAB_RUNTIME` | – | OCI runtime for labs (`sysbox-runc`, `runsc`) |
 | `CODECLOUD_LAB_NETWORK` | `bridge` | Docker network for labs |
 | `CODECLOUD_LAB_CA_BUNDLE` | – | PEM bundle mounted as the labs' CA store (TLS-intercepting proxies) |
+| `CODECLOUD_LAB_IMAGE_REGISTRY` | – | registry with pre-built shared lab images, e.g. `ghcr.io/acme/codecloud-labs` |
 | `CODECLOUD_MAX_LABS_PER_USER` | `2` | concurrent labs per learner |
 | `CODECLOUD_MAX_EXTENSIONS` / `CODECLOUD_EXTENSION_MINUTES` | `2` / `30` | timer extensions |
 | `CODECLOUD_CHECK_TIMEOUT_MS` | `30000` | grading script timeout |

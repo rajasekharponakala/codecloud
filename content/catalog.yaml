@@ -1,0 +1,79 @@
+# Catalog structure: topic categories (used by native and edX courses) and learning paths.
+categories:
+  - id: devops
+    title: DevOps foundations
+    description: Culture, practices and the software delivery lifecycle.
+  - id: linux
+    title: Linux
+    description: The operating system behind almost every server and container.
+  - id: networking
+    title: Networking
+    description: Addresses, ports, DNS, HTTP and troubleshooting.
+  - id: git
+    title: Git & version control
+  - id: programming
+    title: Programming & scripting
+  - id: containers
+    title: Containers
+  - id: kubernetes
+    title: Kubernetes
+  - id: security
+    title: Security
+  - id: iac
+    title: Infrastructure as Code
+  - id: config-management
+    title: Configuration management
+  - id: cicd
+    title: CI/CD
+  - id: observability
+    title: Observability
+  - id: web
+    title: Web servers
+  - id: databases
+    title: Databases
+  - id: cloud
+    title: Cloud
+
+paths:
+  - id: devops-engineer
+    title: DevOps Engineer
+    description: From the Linux command line to automated pipelines, infrastructure as code and monitoring.
+    courses:
+      - devops-foundations
+      - linux-foundations
+      - shell-scripting
+      - git-fundamentals
+      - docker-fundamentals
+      - cicd-fundamentals
+      - opentofu-fundamentals
+      - ansible-fundamentals
+      - prometheus-fundamentals
+  - id: kubernetes-administrator
+    title: Kubernetes Administrator
+    description: A CKA-style track — run, configure, store, network and secure workloads on Kubernetes.
+    courses:
+      - linux-foundations
+      - docker-fundamentals
+      - kubernetes-fundamentals
+      - kubernetes-configuration
+      - kubernetes-storage-and-networking
+      - kubernetes-security
+      - helm-fundamentals
+  - id: linux-sysadmin
+    title: Linux System Administrator
+    description: Operate Linux servers and the services that run on them.
+    courses:
+      - linux-foundations
+      - linux-administration
+      - shell-scripting
+      - linux-networking
+      - nginx-fundamentals
+      - postgresql-fundamentals
+  - id: cloud-and-iac
+    title: Cloud & Infrastructure as Code
+    description: Cloud building blocks and the tools that provision and configure them reproducibly.
+    courses:
+      - devops-foundations
+      - aws-cli-fundamentals
+      - opentofu-fundamentals
+      - ansible-fundamentals

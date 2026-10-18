@@ -1,0 +1,15 @@
+id: postgresql-fundamentals
+title: PostgreSQL Fundamentals
+description: Run and administer PostgreSQL — databases, roles and privileges, SQL essentials, and backups.
+level: beginner
+category: databases
+tags: [postgresql, sql, databases]
+duration_hours: 3
+lessons:
+  - id: sql-basics
+    title: Databases, tables and SQL essentials
+    file: lessons/01-sql-basics.md
+  - id: roles-and-backups
+    title: Roles, privileges and backups
+    file: lessons/02-roles-and-backups.md
+    lab: postgres-basics

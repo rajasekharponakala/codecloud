@@ -1,0 +1,18 @@
+id: cicd-fundamentals
+title: CI/CD Pipelines
+description: Continuous integration and delivery as code — pipeline design, GitHub Actions and open-source alternatives, scheduled jobs.
+level: intermediate
+category: cicd
+tags: [cicd, github-actions, pipelines, automation]
+duration_hours: 3
+lessons:
+  - id: pipeline-design
+    title: Designing a pipeline
+    file: lessons/01-pipeline-design.md
+  - id: github-actions
+    title: GitHub Actions workflows
+    file: lessons/02-github-actions.md
+    lab: github-actions-workflows
+  - id: open-source-ci
+    title: Self-hosted, open-source CI/CD
+    file: lessons/03-open-source-ci.md

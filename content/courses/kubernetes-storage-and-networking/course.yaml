@@ -1,0 +1,15 @@
+id: kubernetes-storage-and-networking
+title: "Kubernetes: Storage and Networking"
+description: Persistent volumes and claims, storage classes, the pod network, Services and NetworkPolicies.
+level: intermediate
+category: kubernetes
+tags: [kubernetes, storage, pvc, networkpolicy, cka]
+duration_hours: 3
+lessons:
+  - id: storage
+    title: Volumes, PersistentVolumeClaims and StorageClasses
+    file: lessons/01-storage.md
+  - id: network-policies
+    title: The pod network and NetworkPolicies
+    file: lessons/02-network-policies.md
+    lab: k8s-storage-network

@@ -24,11 +24,13 @@ function truncate(text) {
  * disposable container; terminals and grading scripts are `docker exec` processes in it.
  */
 export class DockerRuntime {
-  constructor({ socketPath, labRuntime, network, caBundle } = {}) {
+  constructor({ socketPath, labRuntime, network, caBundle, imageRegistry } = {}) {
     this.docker = new Docker(socketPath ? { socketPath } : undefined);
     this.labRuntime = labRuntime;
     this.network = network ?? 'bridge';
     this.caBundle = caBundle;
+    // Image references must be lowercase (GitHub owners often are not).
+    this.imageRegistry = imageRegistry?.replace(/\/+$/, '').toLowerCase();
   }
 
   async ping() {
@@ -36,9 +38,15 @@ export class DockerRuntime {
   }
 
   imageTagFor(lab) {
-    return lab.environment.image ?? `codecloud-lab/${lab.id}:latest`;
+    if (lab.environment.image) return lab.environment.image;
+    return this.imageRegistry ? `${this.imageRegistry}/${lab.imageName}:latest` : `codecloud-lab/${lab.imageName}:latest`;
   }
 
+  /**
+   * Makes the lab's image available locally: public images are pulled; images built from a
+   * content directory are pulled from CODECLOUD_LAB_IMAGE_REGISTRY when configured (CI
+   * pre-builds them), otherwise built on this host.
+   */
   async ensureImage(lab) {
     const tag = this.imageTagFor(lab);
     try {
@@ -47,22 +55,30 @@ export class DockerRuntime {
     } catch (err) {
       if (err.statusCode !== 404) throw err;
     }
-    const stream = lab.environment.build
-      ? await this.buildImage(lab, tag)
-      : await this.docker.pull(tag);
-    await new Promise((resolve, reject) =>
+    if (!lab.buildDir) {
+      await this.follow(await this.docker.pull(tag));
+      return tag;
+    }
+    if (this.imageRegistry) {
+      try {
+        await this.follow(await this.docker.pull(tag));
+        return tag;
+      } catch {
+        // Not published yet: fall back to a local build under the same tag.
+      }
+    }
+    await this.follow(await this.docker.buildImage({ context: lab.buildDir, src: listFiles(lab.buildDir) }, { t: tag }));
+    return tag;
+  }
+
+  follow(stream) {
+    return new Promise((resolve, reject) =>
       this.docker.modem.followProgress(stream, (err, events) => {
         const failed = events?.find((event) => event.error);
         if (err || failed) reject(err ?? new Error(failed.error));
         else resolve();
       }),
     );
-    return tag;
-  }
-
-  async buildImage(lab, tag) {
-    const context = path.join(lab.dir, lab.environment.build);
-    return this.docker.buildImage({ context, src: listFiles(context) }, { t: tag });
   }
 
   async createContainer(sessionId, lab, expiresAt) {
@@ -72,7 +88,8 @@ export class DockerRuntime {
       name: `codecloud-${sessionId}`,
       Image: image,
       // No command: keep the container idling for exec sessions. `command: []`: use the image's own CMD.
-      Cmd: env.command === undefined ? ['sleep', 'infinity'] : env.command.length ? env.command : undefined,
+      Cmd: env.command === undefined ? (env.entrypoint ? undefined : ['sleep', 'infinity']) : env.command.length ? env.command : undefined,
+      Entrypoint: env.entrypoint,
       Hostname: env.hostname,
       WorkingDir: env.workdir,
       Env: Object.entries({

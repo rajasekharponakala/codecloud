@@ -1,0 +1,80 @@
+id: prometheus-basics
+title: "Monitoring with Prometheus: scraping, PromQL and recording rules"
+description: Configure Prometheus to scrape targets, validate configuration with promtool, and pre-compute queries with recording rules.
+difficulty: intermediate
+duration_minutes: 45
+tags: [observability, prometheus]
+environment:
+  image: prom/prometheus:v3.13.4-busybox
+  entrypoint: [/bin/sh, -c, "while :; do sleep 3600; done"]
+  memory_mb: 512
+  cpus: 1
+  shell: /bin/sh
+  workdir: /etc/prometheus
+  hostname: monitoring
+  setup: |
+    mkdir -p /etc/prometheus/rules /prometheus
+    printf 'global:\n  scrape_interval: 1m\n' > /etc/prometheus/prometheus.yml
+tasks:
+  - id: type-quiz
+    type: quiz
+    prompt: "`http_requests_total` only ever increases. Which function gives its per-second rate over 5 minutes?"
+    options: ["sum(http_requests_total)", "rate(http_requests_total[5m])", "delta(http_requests_total)", "avg_over_time(http_requests_total)"]
+    answer: 1
+  - id: scrape-config
+    type: task
+    prompt: |
+      Edit `/etc/prometheus/prometheus.yml`: scrape every `15s`, and add a job named `prometheus`
+      that scrapes `localhost:9090`. It must pass `promtool check config`.
+    check: |
+      f=/etc/prometheus/prometheus.yml
+      promtool check config "$f" >/dev/null 2>&1 || { promtool check config "$f"; exit 1; }
+      grep -Eq 'scrape_interval:[[:space:]]*15s' "$f" || { echo "scrape_interval is not 15s"; exit 1; }
+      grep -Eq 'job_name:[[:space:]]*"?prometheus"?' "$f" || { echo "no job named prometheus"; exit 1; }
+      grep -q 'localhost:9090' "$f" || { echo "localhost:9090 is not a target"; exit 1; }
+    solution: |
+      cat > /etc/prometheus/prometheus.yml <<'YAML'
+      global:
+        scrape_interval: 15s
+      rule_files:
+        - rules/*.yml
+      scrape_configs:
+        - job_name: prometheus
+          static_configs:
+            - targets: ["localhost:9090"]
+      YAML
+  - id: recording-rule
+    type: task
+    prompt: |
+      Create `/etc/prometheus/rules/recording.yml` with a group `availability` containing a
+      recording rule `job:up:sum` = `sum by (job) (up)`, load it via `rule_files`, and make both
+      files pass promtool.
+    check: |
+      r=/etc/prometheus/rules/recording.yml
+      promtool check rules "$r" >/dev/null 2>&1 || { echo "promtool check rules failed for $r"; exit 1; }
+      grep -q 'record:[[:space:]]*job:up:sum' "$r" || { echo "rule job:up:sum not found"; exit 1; }
+      grep -Eq 'expr:.*sum[[:space:]]*by[[:space:]]*\(job\)[[:space:]]*\(up\)' "$r" || { echo "expr must be sum by (job) (up)"; exit 1; }
+      promtool check config /etc/prometheus/prometheus.yml 2>&1 | grep -q 'recording.yml' || { echo "prometheus.yml does not load the rules file"; exit 1; }
+    solution: |
+      cat > /etc/prometheus/rules/recording.yml <<'YAML'
+      groups:
+        - name: availability
+          rules:
+            - record: job:up:sum
+              expr: sum by (job) (up)
+      YAML
+  - id: running
+    type: task
+    prompt: |
+      Start Prometheus in the background with your configuration (`--storage.tsdb.path=/prometheus`),
+      and confirm the `prometheus` target is up via the HTTP API on port 9090.
+    hint: "`nohup prometheus --config.file=/etc/prometheus/prometheus.yml --storage.tsdb.path=/prometheus >/tmp/prom.log 2>&1 &`"
+    check: |
+      wget -qO- http://127.0.0.1:9090/-/ready >/dev/null 2>&1 || { echo "Prometheus is not answering on :9090"; exit 1; }
+      wget -qO- 'http://127.0.0.1:9090/api/v1/query?query=up%7Bjob%3D%22prometheus%22%7D' | grep -q '"value":\[[0-9.]*,"1"\]' || { echo "the prometheus target is not up yet (scrapes run every 15s)"; exit 1; }
+    solution: |
+      nohup prometheus --config.file=/etc/prometheus/prometheus.yml --storage.tsdb.path=/prometheus >/tmp/prom.log 2>&1 &
+      for i in $(seq 1 30); do
+        wget -qO- 'http://127.0.0.1:9090/api/v1/query?query=up%7Bjob%3D%22prometheus%22%7D' 2>/dev/null | grep -q '"1"\]' && break
+        sleep 2
+      done

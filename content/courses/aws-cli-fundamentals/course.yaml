@@ -1,0 +1,15 @@
+id: aws-cli-fundamentals
+title: Cloud Fundamentals with the AWS CLI
+description: Core cloud concepts and the AWS CLI — storage, NoSQL, identity — practised against an open-source AWS emulator.
+level: beginner
+category: cloud
+tags: [cloud, aws, s3, iam, dynamodb]
+duration_hours: 3
+lessons:
+  - id: cloud-concepts
+    title: Cloud computing concepts
+    file: lessons/01-cloud-concepts.md
+  - id: aws-cli
+    title: Working with the AWS CLI
+    file: lessons/02-aws-cli.md
+    lab: aws-cli-moto

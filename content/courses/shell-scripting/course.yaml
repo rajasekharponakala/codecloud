@@ -1,0 +1,15 @@
+id: shell-scripting
+title: Shell Scripting with Bash
+description: Turn command lines into reliable scripts — arguments, conditions, loops, functions, exit codes and linting.
+level: beginner
+category: programming
+tags: [bash, scripting, automation]
+duration_hours: 3
+lessons:
+  - id: script-basics
+    title: Scripts, variables and arguments
+    file: lessons/01-script-basics.md
+  - id: control-flow
+    title: Conditions, loops and robust scripts
+    file: lessons/02-control-flow.md
+    lab: bash-scripting

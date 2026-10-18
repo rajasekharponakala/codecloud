@@ -20,6 +20,15 @@ describe('content', () => {
     }
   });
 
+  it('links every lab to a course and every path to existing courses', () => {
+    const { courses, labs, catalog } = repoContent();
+    const used = new Set([...courses.values()].flatMap((c) => c.lessons.map((l) => l.lab).filter(Boolean)));
+    for (const lab of labs.values()) {
+      if (lab.kind === 'lab') expect(used.has(lab.id), `${lab.id} is not used by any course`).toBe(true);
+    }
+    for (const p of catalog.paths) for (const id of p.courses) expect(courses.has(id)).toBe(true);
+  });
+
   it('applies environment defaults', () => {
     const lab = labSchema.parse(base);
     expect(lab.kind).toBe('lab');
@@ -60,5 +69,18 @@ describe('content', () => {
     expect(html).toContain('<h1>Hi</h1>');
     expect(html).not.toContain('<script');
     expect(html).not.toContain('onerror');
+  });
+});
+
+describe('lab images', () => {
+  it('names shared images after their directory and honours a registry', async () => {
+    const { DockerRuntime } = await import('../src/runtime/docker.js');
+    const lab = repoContent().labs.get('git-basics');
+    expect(lab.imageName).toBe('workstation');
+    expect(new DockerRuntime({}).imageTagFor(lab)).toBe('codecloud-lab/workstation:latest');
+    expect(new DockerRuntime({ imageRegistry: 'ghcr.io/Acme/codecloud-labs/' }).imageTagFor(lab)).toBe(
+      'ghcr.io/acme/codecloud-labs/workstation:latest',
+    );
+    expect(new DockerRuntime({}).imageTagFor(repoContent().labs.get('nginx-basics'))).toBe('nginx:alpine');
   });
 });

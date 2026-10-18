@@ -1,0 +1,44 @@
+# Configuration for scripts/sync-edx.js (run weekly by .github/workflows/edx-sync.yml).
+#
+# Courses are read from the public Open edX Course API (GET /api/courses/v1/courses/) of each
+# instance below. Any Open edX site works — add your own instance to list its courses too.
+instances:
+  - provider: edx
+    base_url: https://courses.edx.org
+
+# At most this many courses are kept per category (newest first).
+max_per_category: 12
+
+# Courses are assigned to the first category whose keywords match the title or short
+# description (case-insensitive, whole words). Courses that match nothing are skipped.
+categories:
+  - id: kubernetes
+    keywords: [kubernetes, k8s, helm, cloud native]
+  - id: containers
+    keywords: [docker, containers, containerization, podman]
+  - id: iac
+    keywords: [terraform, opentofu, infrastructure as code, pulumi]
+  - id: config-management
+    keywords: [ansible, puppet, chef, configuration management]
+  - id: cicd
+    keywords: [continuous integration, continuous delivery, continuous deployment, ci/cd, jenkins, github actions, gitlab]
+  - id: observability
+    keywords: [prometheus, observability, monitoring, grafana]
+  - id: devops
+    keywords: [devops, site reliability, sre, devsecops]
+  - id: security
+    keywords: [cybersecurity, cyber security, information security, network security, ethical hacking]
+  - id: git
+    keywords: [git, version control]
+  - id: linux
+    keywords: [linux, unix, bash, command line, open source software]
+  - id: networking
+    keywords: [computer networking, computer networks, tcp/ip, network fundamentals]
+  - id: cloud
+    keywords: [cloud computing, aws, amazon web services, azure, google cloud, openstack]
+  - id: databases
+    keywords: [sql, databases, database, postgresql, mysql, nosql]
+  - id: web
+    keywords: [nginx, web server, web servers]
+  - id: programming
+    keywords: [python, golang, go programming, scripting]

@@ -1,0 +1,15 @@
+id: nginx-fundamentals
+title: NGINX Fundamentals
+description: Serve static sites, reverse-proxy applications, add headers and TLS, and reload configuration safely.
+level: beginner
+category: web
+tags: [nginx, web, reverse-proxy, http]
+duration_hours: 2
+lessons:
+  - id: config-structure
+    title: How NGINX configuration works
+    file: lessons/01-config-structure.md
+  - id: reverse-proxy
+    title: Reverse proxying, headers and TLS
+    file: lessons/02-reverse-proxy.md
+    lab: nginx-basics

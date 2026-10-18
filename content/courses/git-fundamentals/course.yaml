@@ -1,0 +1,18 @@
+id: git-fundamentals
+title: Git Fundamentals
+description: Version control from first commit to branching, merging, tagging releases and collaborating through remotes.
+level: beginner
+category: git
+tags: [git, version-control]
+duration_hours: 3
+lessons:
+  - id: commits
+    title: Repositories, the staging area and commits
+    file: lessons/01-commits.md
+  - id: branches
+    title: Branches, merges and tags
+    file: lessons/02-branches.md
+    lab: git-basics
+  - id: collaboration
+    title: Remotes and pull requests
+    file: lessons/03-collaboration.md

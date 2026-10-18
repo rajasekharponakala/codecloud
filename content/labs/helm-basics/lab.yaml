@@ -1,0 +1,63 @@
+id: helm-basics
+title: "Helm: charts, releases, values and rollbacks"
+description: Package a Kubernetes application as a Helm chart, install it, upgrade it with new values and roll back.
+difficulty: intermediate
+duration_minutes: 50
+tags: [kubernetes, helm]
+environment:
+  build: ../../images/k8s-tools
+  command: [server, --disable=traefik, --disable=metrics-server, --write-kubeconfig-mode=644, "--kubelet-arg=fail-cgroupv1=false"]
+  privileged: true
+  memory_mb: 2048
+  cpus: 2
+  pids_limit: 4096
+  shell: /bin/sh
+  hostname: controlplane
+  env:
+    KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+  ready_check: kubectl get nodes --no-headers 2>/dev/null | grep -q " Ready" && kubectl get serviceaccount default >/dev/null 2>&1
+  ready_timeout_seconds: 240
+tasks:
+  - id: release-quiz
+    type: quiz
+    prompt: In Helm, what is a *release*?
+    options:
+      - A versioned chart archive in a repository
+      - An installed instance of a chart in a cluster
+      - A Git tag of the chart source
+      - The values.yaml file
+    answer: 1
+  - id: create-chart
+    type: task
+    prompt: Scaffold a chart named `webapp` in `/root/charts/webapp` and set its default `replicaCount` to `2`.
+    check: |
+      [ -f /root/charts/webapp/Chart.yaml ] || { echo "/root/charts/webapp/Chart.yaml not found"; exit 1; }
+      grep -Eq '^replicaCount:[[:space:]]*2[[:space:]]*$' /root/charts/webapp/values.yaml || { echo "replicaCount is not 2 in values.yaml"; exit 1; }
+      helm lint /root/charts/webapp >/dev/null || { echo "helm lint fails"; exit 1; }
+    solution: |
+      mkdir -p /root/charts && cd /root/charts
+      helm create webapp
+      sed -i 's/^replicaCount: .*/replicaCount: 2/' webapp/values.yaml
+  - id: install
+    type: task
+    prompt: Install the chart as release `shop` in a new namespace `apps`.
+    check: |
+      [ "$(helm status shop -n apps -o json 2>/dev/null | grep -o '"status":"[a-z-]*"' | head -1)" = '"status":"deployed"' ] || { echo "release apps/shop is not deployed"; exit 1; }
+      [ "$(kubectl -n apps get deploy shop-webapp -o jsonpath='{.spec.replicas}' 2>/dev/null)" = "2" ] || { echo "deployment shop-webapp does not have 2 replicas"; exit 1; }
+    solution: helm install shop /root/charts/webapp -n apps --create-namespace
+  - id: upgrade
+    type: task
+    prompt: Upgrade `shop` so the service type is `NodePort` and there are `3` replicas, using `--set` values (not by editing the chart).
+    check: |
+      v=$(helm get values shop -n apps -o json 2>/dev/null)
+      echo "$v" | grep -q '"replicaCount":3' || { echo "release values do not set replicaCount=3"; exit 1; }
+      echo "$v" | grep -q '"type":"NodePort"' || { echo "release values do not set service.type=NodePort"; exit 1; }
+      [ "$(kubectl -n apps get svc shop-webapp -o jsonpath='{.spec.type}')" = "NodePort" ] || { echo "service is not NodePort"; exit 1; }
+    solution: helm upgrade shop /root/charts/webapp -n apps --set replicaCount=3 --set service.type=NodePort
+  - id: rollback
+    type: task
+    prompt: Roll `shop` back to revision 1.
+    check: |
+      helm history shop -n apps 2>/dev/null | tail -1 | grep -q 'Rollback to 1' || { echo "the latest revision is not a rollback to 1"; exit 1; }
+      [ "$(kubectl -n apps get svc shop-webapp -o jsonpath='{.spec.type}')" = "ClusterIP" ] || { echo "service type was not restored"; exit 1; }
+    solution: helm rollback shop 1 -n apps

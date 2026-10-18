@@ -1,0 +1,95 @@
+id: bash-scripting
+title: "Bash scripting: arguments, conditions, loops and exit codes"
+description: Write small, robust shell scripts of the kind that glue DevOps work together.
+difficulty: beginner
+duration_minutes: 45
+tags: [linux, bash]
+environment:
+  build: ../../images/workstation
+  memory_mb: 256
+  cpus: 0.5
+  setup: |
+    mkdir -p /root/scripts /srv/data/app /srv/data/logs
+    for i in 1 2 3; do echo "data $i" > /srv/data/app/file$i.txt; done
+    printf 'web01 up\nweb02 down\ndb01 up\ncache01 down\n' > /srv/data/hosts.txt
+tasks:
+  - id: exit-quiz
+    type: quiz
+    prompt: Which variable holds the exit status of the last command?
+    options: ["$#", "$?", "$!", "$$"]
+    answer: 1
+  - id: greet
+    type: task
+    prompt: |
+      Write an executable script `/root/scripts/greet.sh` that prints `Hello, NAME!` where NAME is
+      its first argument. Called without an argument it must print `usage: greet.sh NAME` to
+      stderr and exit with status 1.
+    check: |
+      s=/root/scripts/greet.sh
+      [ -x "$s" ] || { echo "$s is missing or not executable"; exit 1; }
+      [ "$($s Ada)" = "Hello, Ada!" ] || { echo "greet.sh Ada printed: $($s Ada 2>&1)"; exit 1; }
+      out=$($s 2>&1 >/dev/null); code=$?
+      [ $code -eq 1 ] || { echo "without arguments it exited with $code"; exit 1; }
+      echo "$out" | grep -q 'usage: greet.sh NAME' || { echo "usage message not printed to stderr"; exit 1; }
+    solution: |
+      cat > /root/scripts/greet.sh <<'SH'
+      #!/usr/bin/env bash
+      if [ $# -lt 1 ]; then
+        echo "usage: greet.sh NAME" >&2
+        exit 1
+      fi
+      echo "Hello, $1!"
+      SH
+      chmod +x /root/scripts/greet.sh
+  - id: backup
+    type: task
+    prompt: |
+      Write `/root/scripts/backup.sh DIR` that creates `/root/backups/<dirname>.tar.gz` containing
+      DIR (create `/root/backups` if needed) and prints the archive path. If DIR does not exist it
+      must exit with status 2.
+    hint: "`basename`, `mkdir -p`, `tar -czf`, and `[ -d \"$1\" ]`"
+    check: |
+      s=/root/scripts/backup.sh
+      [ -x "$s" ] || { echo "$s is missing or not executable"; exit 1; }
+      rm -rf /root/backups
+      out=$($s /srv/data/app) || { echo "backup.sh /srv/data/app failed"; exit 1; }
+      [ -f /root/backups/app.tar.gz ] || { echo "/root/backups/app.tar.gz was not created"; exit 1; }
+      tar -tzf /root/backups/app.tar.gz | grep -q 'file2.txt' || { echo "archive does not contain the directory's files"; exit 1; }
+      echo "$out" | grep -q '/root/backups/app.tar.gz' || { echo "script did not print the archive path"; exit 1; }
+      $s /does/not/exist >/dev/null 2>&1; code=$?
+      [ $code -eq 2 ] || { echo "missing directory exited with $code, expected 2"; exit 1; }
+    solution: |
+      cat > /root/scripts/backup.sh <<'SH'
+      #!/usr/bin/env bash
+      set -euo pipefail
+      dir=${1:-}
+      [ -d "$dir" ] || { echo "no such directory: $dir" >&2; exit 2; }
+      mkdir -p /root/backups
+      archive="/root/backups/$(basename "$dir").tar.gz"
+      tar -czf "$archive" -C "$(dirname "$dir")" "$(basename "$dir")"
+      echo "$archive"
+      SH
+      chmod +x /root/scripts/backup.sh
+  - id: down-hosts
+    type: task
+    prompt: |
+      Write `/root/scripts/down-hosts.sh` that reads `/srv/data/hosts.txt` and prints only the
+      names of hosts whose status is `down`, one per line, in file order.
+    check: |
+      s=/root/scripts/down-hosts.sh
+      [ -x "$s" ] || { echo "$s is missing or not executable"; exit 1; }
+      [ "$($s)" = "$(printf 'web02\ncache01')" ] || { echo "printed: $($s 2>&1 | tr '\n' ' ')"; exit 1; }
+    solution: |
+      cat > /root/scripts/down-hosts.sh <<'SH'
+      #!/usr/bin/env bash
+      while read -r host status; do
+        if [ "$status" = "down" ]; then echo "$host"; fi
+      done < /srv/data/hosts.txt
+      SH
+      chmod +x /root/scripts/down-hosts.sh
+  - id: shellcheck
+    type: task
+    prompt: Make sure all three scripts pass `shellcheck` without warnings.
+    check: |
+      shellcheck /root/scripts/greet.sh /root/scripts/backup.sh /root/scripts/down-hosts.sh || exit 1
+    solution: "# The reference solutions above are already shellcheck-clean."

@@ -1,0 +1,15 @@
+id: linux-administration
+title: Linux Administration
+description: Manage users and groups, privileges with sudo, software packages and scheduled jobs on Ubuntu servers.
+level: beginner
+category: linux
+tags: [linux, sudo, cron, apt]
+duration_hours: 3
+lessons:
+  - id: users-and-groups
+    title: Users, groups and shared directories
+    file: lessons/01-users-and-groups.md
+  - id: sudo-packages-cron
+    title: sudo, packages and scheduled jobs
+    file: lessons/02-sudo-packages-cron.md
+    lab: linux-admin

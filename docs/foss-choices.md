@@ -18,6 +18,15 @@ product: the lab lifecycle and the grading contract.
 | Database | SQLite via [better-sqlite3](https://github.com/WiseLibs/better-sqlite3) | MIT | Zero-ops, transactional, ideal for one host | PostgreSQL (the natural upgrade for multi-host) |
 | Content format | [yaml](https://github.com/eemeli/yaml), [zod](https://zod.dev) | ISC, MIT | Human-authored labs with precise validation errors | JSON Schema + ajv |
 | Lessons | [marked](https://marked.js.org) + [sanitize-html](https://github.com/apostrophecms/sanitize-html) | MIT | Markdown to safe HTML | markdown-it + DOMPurify |
+| Kubernetes packaging | [Helm](https://helm.sh) | Apache-2.0 | The standard Kubernetes package manager | Kustomize (taught alongside, not packaged) |
+| Infrastructure as Code | [OpenTofu](https://opentofu.org) | MPL-2.0 | Linux Foundation fork of Terraform, compatible configuration | Terraform (now BUSL, not open source) |
+| Configuration management | [ansible-core](https://github.com/ansible/ansible) | GPL-3.0 | Agentless, the most widely used | Salt, Puppet |
+| AWS practice without an account | [Moto](https://github.com/getmoto/moto) | Apache-2.0 | Emulates S3, DynamoDB, IAM and more in one process | LocalStack (broader coverage; check its current licence terms) |
+| Monitoring | [Prometheus](https://prometheus.io) | Apache-2.0 | CNCF-graduated metrics standard, `promtool` validates config | VictoriaMetrics |
+| Linting in labs | [ShellCheck](https://www.shellcheck.net), [actionlint](https://github.com/rhysd/actionlint), [yq](https://github.com/mikefarah/yq) | GPL-3.0, MIT, MIT | Precise, scriptable checks for learners' scripts and workflows | hand-written grep checks |
+| Course catalog from edX | Open edX Course API | AGPL-3.0 platform, public API | Public, unauthenticated listing on every Open edX instance | scraping edx.org (fragile), Discovery API (needs credentials) |
+| Course export to Open edX | OLX + [tar](https://github.com/isaacs/node-tar) | ISC | OLX is Open edX's native import format | SCORM packages (lossy for problems) |
+| Scheduled and heavy jobs | GitHub Actions, [create-pull-request](https://github.com/peter-evans/create-pull-request), Docker build-push actions | MIT | Runs next to the code. Matrix builds, cron schedules and GHCR are built in | self-hosted Forgejo Actions (same workflow syntax) |
 | Tests | [Vitest](https://vitest.dev), [ws](https://github.com/websockets/ws) | MIT | Fast ESM-native runner and a WebSocket client | node:test |
 
 All dependencies are actively maintained, widely adopted, permissively licensed and had no

@@ -1,0 +1,94 @@
+id: k8s-config
+title: "Kubernetes: ConfigMaps, Secrets, resources and probes"
+description: Configure applications without rebuilding images, and tell Kubernetes how much they need and how to check them.
+difficulty: intermediate
+duration_minutes: 60
+tags: [kubernetes]
+environment:
+  build: ../../images/k8s-tools
+  command: [server, --disable=traefik, --disable=metrics-server, --write-kubeconfig-mode=644, "--kubelet-arg=fail-cgroupv1=false"]
+  privileged: true
+  memory_mb: 2048
+  cpus: 2
+  pids_limit: 4096
+  shell: /bin/sh
+  hostname: controlplane
+  env:
+    KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+  ready_check: kubectl get nodes --no-headers 2>/dev/null | grep -q " Ready" && kubectl get serviceaccount default >/dev/null 2>&1
+  ready_timeout_seconds: 240
+tasks:
+  - id: secret-quiz
+    type: quiz
+    prompt: How are values in a Kubernetes Secret stored in its manifest by default?
+    options: [Encrypted with AES, Base64-encoded (not encrypted), Hashed with SHA-256, In plain text only]
+    answer: 1
+    explanation: Base64 is an encoding, not encryption — enable encryption at rest and restrict RBAC.
+  - id: configmap
+    type: task
+    prompt: Create a ConfigMap `app-config` with keys `APP_MODE=production` and `LOG_LEVEL=info`.
+    check: |
+      [ "$(kubectl get cm app-config -o jsonpath='{.data.APP_MODE}' 2>/dev/null)" = "production" ] || { echo "app-config APP_MODE is not production"; exit 1; }
+      [ "$(kubectl get cm app-config -o jsonpath='{.data.LOG_LEVEL}')" = "info" ] || { echo "app-config LOG_LEVEL is not info"; exit 1; }
+    solution: kubectl create configmap app-config --from-literal=APP_MODE=production --from-literal=LOG_LEVEL=info
+  - id: secret
+    type: task
+    prompt: Create a generic Secret `db-credentials` with `username=app` and `password=S3cure-pass`.
+    check: |
+      [ "$(kubectl get secret db-credentials -o jsonpath='{.data.username}' 2>/dev/null | base64 -d)" = "app" ] || { echo "db-credentials username is wrong"; exit 1; }
+      [ "$(kubectl get secret db-credentials -o jsonpath='{.data.password}' | base64 -d)" = "S3cure-pass" ] || { echo "db-credentials password is wrong"; exit 1; }
+    solution: kubectl create secret generic db-credentials --from-literal=username=app --from-literal=password=S3cure-pass
+  - id: pod
+    type: task
+    prompt: |
+      Create a pod `api` (image `nginx:alpine`) that:
+      * loads every key of `app-config` as environment variables (`envFrom`),
+      * sets `DB_PASSWORD` from the `password` key of `db-credentials`,
+      * requests `100m` CPU and `64Mi` memory, with a memory limit of `128Mi`,
+      * has an HTTP liveness probe on path `/` port `80`.
+    check: |
+      p() { kubectl get pod api -o jsonpath="$1" 2>/dev/null; }
+      p '{.metadata.name}' | grep -qx api || { echo "pod api not found"; exit 1; }
+      p '{.spec.containers[0].envFrom[*].configMapRef.name}' | grep -qw app-config || { echo "api does not load app-config with envFrom"; exit 1; }
+      [ "$(p '{.spec.containers[0].env[?(@.name=="DB_PASSWORD")].valueFrom.secretKeyRef.name}')" = "db-credentials" ] || { echo "DB_PASSWORD does not come from db-credentials"; exit 1; }
+      [ "$(p '{.spec.containers[0].env[?(@.name=="DB_PASSWORD")].valueFrom.secretKeyRef.key}')" = "password" ] || { echo "DB_PASSWORD must use the password key"; exit 1; }
+      [ "$(p '{.spec.containers[0].resources.requests.cpu}')" = "100m" ] || { echo "CPU request is not 100m"; exit 1; }
+      [ "$(p '{.spec.containers[0].resources.requests.memory}')" = "64Mi" ] || { echo "memory request is not 64Mi"; exit 1; }
+      [ "$(p '{.spec.containers[0].resources.limits.memory}')" = "128Mi" ] || { echo "memory limit is not 128Mi"; exit 1; }
+      [ "$(p '{.spec.containers[0].livenessProbe.httpGet.port}')" = "80" ] || { echo "no HTTP liveness probe on port 80"; exit 1; }
+    solution: |
+      cat <<'YAML' | kubectl apply -f -
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: api
+      spec:
+        containers:
+          - name: api
+            image: nginx:alpine
+            envFrom:
+              - configMapRef:
+                  name: app-config
+            env:
+              - name: DB_PASSWORD
+                valueFrom:
+                  secretKeyRef:
+                    name: db-credentials
+                    key: password
+            resources:
+              requests:
+                cpu: 100m
+                memory: 64Mi
+              limits:
+                memory: 128Mi
+            livenessProbe:
+              httpGet:
+                path: /
+                port: 80
+      YAML
+  - id: qos-quiz
+    type: quiz
+    prompt: Which QoS class will the `api` pod get?
+    options: [Guaranteed, Burstable, BestEffort]
+    answer: 1
+    explanation: Requests are set but not equal to limits for every resource, so the pod is Burstable.

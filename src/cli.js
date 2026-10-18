@@ -33,19 +33,23 @@ async function testLab(labId, solve) {
       const setup = await runtime.exec(containerId, env.setup, { timeoutMs: env.ready_timeout_seconds * 1000 });
       if (setup.exitCode !== 0) throw new Error(`setup failed:\n${setup.output}`);
     }
-    for (const task of lab.tasks.filter((t) => t.type === 'task')) {
+    const tasks = lab.tasks.filter((t) => t.type === 'task');
+    // Every check must fail on the fresh environment, before any solution has run.
+    for (const task of tasks) {
       const before = await runtime.exec(containerId, task.check, { workdir: env.workdir });
       if (before.exitCode === 0) {
         failures += 1;
         console.log(`✗ ${task.id}: check passes before the learner did anything`);
       }
-      if (!solve) continue;
+    }
+    // Then each solution, in order, must make its check pass.
+    for (const task of solve ? tasks : []) {
       if (!task.solution) {
         console.log(`- ${task.id}: no solution to run`);
         continue;
       }
       const run = await runtime.exec(containerId, task.solution, { workdir: env.workdir, timeoutMs: 300_000 });
-      const after = await runtime.exec(containerId, task.check, { workdir: env.workdir });
+      const after = await runtime.exec(containerId, task.check, { workdir: env.workdir, timeoutMs: 120_000 });
       const ok = after.exitCode === 0;
       if (!ok) failures += 1;
       console.log(`${ok ? '✓' : '✗'} ${task.id}${ok ? '' : `\n  solution output: ${run.output.trim()}\n  check output: ${after.output.trim()}`}`);

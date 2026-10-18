@@ -1,0 +1,79 @@
+id: nginx-basics
+title: "NGINX: static sites, reverse proxying and safe reloads"
+description: Configure NGINX virtual servers, proxy an upstream application, and reload without downtime.
+difficulty: beginner
+duration_minutes: 40
+tags: [web, nginx]
+environment:
+  image: nginx:alpine
+  command: []
+  memory_mb: 256
+  cpus: 0.5
+  shell: /bin/sh
+  hostname: web01
+  setup: |
+    mkdir -p /srv/site /srv/api
+    echo '<h1>Welcome to CodeCloud</h1>' > /srv/site/index.html
+    echo '{"status":"ok"}' > /srv/api/health
+    # Stand-in for an application server on 127.0.0.1:9000.
+    printf 'server {\n    listen 127.0.0.1:9000;\n    root /srv/api;\n    default_type application/json;\n}\n' > /etc/nginx/conf.d/backend.conf
+    nginx -s reload
+tasks:
+  - id: test-quiz
+    type: quiz
+    prompt: Which command validates NGINX configuration without applying it?
+    options: ["nginx -s reload", "nginx -t", "nginx -V", "systemctl restart nginx"]
+    answer: 1
+  - id: static
+    type: task
+    prompt: |
+      Add `/etc/nginx/conf.d/site.conf` with a server listening on port `8081` that serves files
+      from `/srv/site`. Validate and reload NGINX so `http://localhost:8081/` returns the welcome page.
+    check: |
+      [ -f /etc/nginx/conf.d/site.conf ] || { echo "site.conf not found"; exit 1; }
+      nginx -t >/dev/null 2>&1 || { nginx -t; exit 1; }
+      wget -qO- http://127.0.0.1:8081/ 2>/dev/null | grep -q 'Welcome to CodeCloud' || { echo "port 8081 does not serve /srv/site — did you reload?"; exit 1; }
+    solution: |
+      cat > /etc/nginx/conf.d/site.conf <<'CONF'
+      server {
+          listen 8081;
+          root /srv/site;
+          index index.html;
+      }
+      CONF
+      nginx -t && nginx -s reload
+      sleep 1
+  - id: proxy
+    type: task
+    prompt: |
+      An API runs on `127.0.0.1:9000`. In the same server, proxy every request under `/api/` to it
+      (stripping the `/api` prefix) so `http://localhost:8081/api/health` returns `{"status":"ok"}`.
+    hint: "`location /api/ { proxy_pass http://127.0.0.1:9000/; }` — the trailing slash strips the prefix."
+    check: |
+      nginx -t >/dev/null 2>&1 || { nginx -t; exit 1; }
+      wget -qO- http://127.0.0.1:8081/api/health 2>/dev/null | grep -q '"status":"ok"' || { echo "/api/health is not proxied to the API"; exit 1; }
+    solution: |
+      cat > /etc/nginx/conf.d/site.conf <<'CONF'
+      server {
+          listen 8081;
+          root /srv/site;
+          index index.html;
+
+          location /api/ {
+              proxy_pass http://127.0.0.1:9000/;
+              proxy_set_header Host $host;
+              proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+          }
+      }
+      CONF
+      nginx -t && nginx -s reload
+      sleep 1
+  - id: header
+    type: task
+    prompt: "Make every response from that server include the header `X-Served-By: codecloud`."
+    check: |
+      wget -S -qO- http://127.0.0.1:8081/ 2>&1 >/dev/null | grep -qi 'X-Served-By: codecloud' || { echo "header X-Served-By: codecloud is missing"; exit 1; }
+    solution: |
+      sed -i 's|    index index.html;|    index index.html;\n    add_header X-Served-By codecloud always;|' /etc/nginx/conf.d/site.conf
+      nginx -t && nginx -s reload
+      sleep 1

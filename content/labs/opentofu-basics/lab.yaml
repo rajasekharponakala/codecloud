@@ -1,0 +1,80 @@
+id: opentofu-basics
+title: "Infrastructure as Code with OpenTofu"
+description: Write HCL, plan and apply changes, use variables and outputs, and inspect state with OpenTofu, the open-source Terraform fork.
+difficulty: intermediate
+duration_minutes: 50
+tags: [iac, opentofu, terraform]
+environment:
+  build: ../../images/opentofu
+  memory_mb: 512
+  cpus: 1
+  hostname: iac-lab
+  setup: mkdir -p /root/infra
+tasks:
+  - id: plan-quiz
+    type: quiz
+    prompt: What does `tofu plan` do?
+    options:
+      - Applies changes immediately
+      - Shows what would change to make real infrastructure match the configuration
+      - Downloads modules only
+      - Deletes the state file
+    answer: 1
+  - id: config
+    type: task
+    prompt: |
+      In `/root/infra/main.tf`, declare a string variable `environment` with default `"dev"`, a
+      `terraform_data` resource named `app` whose `input` is `"web-${var.environment}"`, and an
+      output `app_name` that returns the resource's `output` attribute. It must pass `tofu validate`.
+    hint: "`terraform_data` is built in — no provider downloads needed."
+    check: |
+      cd /root/infra 2>/dev/null && [ -f main.tf ] || { echo "/root/infra/main.tf not found"; exit 1; }
+      tofu init -input=false >/dev/null 2>&1 || { echo "tofu init failed"; exit 1; }
+      tofu validate -no-color || exit 1
+      grep -q 'variable "environment"' main.tf || { echo "variable environment is missing"; exit 1; }
+      grep -q 'resource "terraform_data" "app"' main.tf || { echo "terraform_data.app is missing"; exit 1; }
+      grep -q 'output "app_name"' main.tf || { echo "output app_name is missing"; exit 1; }
+    solution: |
+      cat > /root/infra/main.tf <<'HCL'
+      variable "environment" {
+        type    = string
+        default = "dev"
+      }
+
+      resource "terraform_data" "app" {
+        input = "web-${var.environment}"
+      }
+
+      output "app_name" {
+        value = terraform_data.app.output
+      }
+      HCL
+      cd /root/infra && tofu init -input=false
+  - id: apply
+    type: task
+    prompt: Apply the configuration so the state contains `terraform_data.app` and `tofu output -raw app_name` prints `web-dev`.
+    check: |
+      cd /root/infra || exit 1
+      tofu state list 2>/dev/null | grep -qx terraform_data.app || { echo "terraform_data.app is not in the state"; exit 1; }
+      [ "$(tofu output -raw app_name 2>/dev/null)" = "web-dev" ] || { echo "app_name is not web-dev"; exit 1; }
+    solution: cd /root/infra && tofu apply -auto-approve -input=false
+  - id: tfvars
+    type: task
+    prompt: |
+      Create `/root/infra/prod.tfvars` setting `environment = "prod"` and apply with it, so that
+      `app_name` becomes `web-prod`. Then save the plain output value to `/root/infra/app_name.txt`.
+    check: |
+      cd /root/infra || exit 1
+      grep -Eq 'environment[[:space:]]*=[[:space:]]*"prod"' prod.tfvars 2>/dev/null || { echo "prod.tfvars does not set environment = \"prod\""; exit 1; }
+      [ "$(tofu output -raw app_name 2>/dev/null)" = "web-prod" ] || { echo "app_name is not web-prod — did you apply with -var-file?"; exit 1; }
+      [ "$(cat app_name.txt 2>/dev/null)" = "web-prod" ] || { echo "app_name.txt does not contain web-prod"; exit 1; }
+    solution: |
+      cd /root/infra
+      echo 'environment = "prod"' > prod.tfvars
+      tofu apply -auto-approve -input=false -var-file=prod.tfvars
+      tofu output -raw app_name > app_name.txt
+  - id: replace-quiz
+    type: quiz
+    prompt: Changing `input` of `terraform_data.app` made OpenTofu replace the resource. Which flag forces a replacement without a config change?
+    options: ["-refresh-only", "-replace=ADDRESS", "-target=ADDRESS", "-destroy"]
+    answer: 1

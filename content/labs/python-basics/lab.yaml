@@ -1,0 +1,92 @@
+id: python-basics
+title: "Python for DevOps: files, JSON and subprocesses"
+description: Automate operational chores with the Python standard library — parse logs and JSON, and wrap shell commands.
+difficulty: beginner
+duration_minutes: 45
+tags: [python, programming]
+environment:
+  image: python:3.13-slim
+  memory_mb: 256
+  cpus: 0.5
+  setup: |
+    mkdir -p /root/tools /srv/data
+    cat > /srv/data/services.json <<'JSON'
+    [{"name": "api", "replicas": 3, "healthy": 3},
+     {"name": "worker", "replicas": 2, "healthy": 1},
+     {"name": "web", "replicas": 4, "healthy": 4},
+     {"name": "cron", "replicas": 1, "healthy": 0}]
+    JSON
+    printf '10.0.0.1 GET /\n10.0.0.2 GET /login\n10.0.0.1 POST /login\n10.0.0.3 GET /\n10.0.0.1 GET /health\n' > /srv/data/access.log
+tasks:
+  - id: dict-quiz
+    type: quiz
+    prompt: Which standard-library module parses JSON text into Python objects?
+    options: [pickle, json, csv, configparser]
+    answer: 1
+  - id: unhealthy
+    type: task
+    prompt: |
+      Write `/root/tools/unhealthy.py` that reads `/srv/data/services.json` and prints the names of
+      services with fewer healthy than desired replicas, one per line, sorted alphabetically.
+    check: |
+      f=/root/tools/unhealthy.py
+      [ -f "$f" ] || { echo "$f does not exist"; exit 1; }
+      out=$(python3 "$f") || { echo "the script failed"; exit 1; }
+      [ "$out" = "$(printf 'cron\nworker')" ] || { echo "printed: $(echo "$out" | tr '\n' ' ')"; exit 1; }
+    solution: |
+      cat > /root/tools/unhealthy.py <<'PY'
+      import json
+
+      with open("/srv/data/services.json") as f:
+          services = json.load(f)
+      for name in sorted(s["name"] for s in services if s["healthy"] < s["replicas"]):
+          print(name)
+      PY
+  - id: top-ip
+    type: task
+    prompt: |
+      Write `/root/tools/top_ip.py PATH` that prints the client IP with the most requests in the
+      access log given as its first argument, followed by a space and the count (e.g. `10.0.0.9 7`).
+    hint: "`sys.argv[1]` and `collections.Counter`"
+    check: |
+      f=/root/tools/top_ip.py
+      [ -f "$f" ] || { echo "$f does not exist"; exit 1; }
+      [ "$(python3 "$f" /srv/data/access.log)" = "10.0.0.1 3" ] || { echo "printed: $(python3 "$f" /srv/data/access.log 2>&1 | tail -1)"; exit 1; }
+      printf '1.1.1.1 GET /\n2.2.2.2 GET /\n2.2.2.2 GET /x\n' > /tmp/other.log
+      [ "$(python3 "$f" /tmp/other.log)" = "2.2.2.2 2" ] || { echo "the script ignores its argument"; exit 1; }
+    solution: |
+      cat > /root/tools/top_ip.py <<'PY'
+      import sys
+      from collections import Counter
+
+      with open(sys.argv[1]) as f:
+          counts = Counter(line.split()[0] for line in f if line.strip())
+      ip, n = counts.most_common(1)[0]
+      print(f"{ip} {n}")
+      PY
+  - id: disk-check
+    type: task
+    prompt: |
+      Write `/root/tools/check_disk.py` that runs `df -P /` with `subprocess`, and exits with status
+      `1` (printing `ALERT`) if usage of `/` is at or above the percentage given as its first
+      argument, otherwise prints `OK` and exits 0.
+    check: |
+      f=/root/tools/check_disk.py
+      [ -f "$f" ] || { echo "$f does not exist"; exit 1; }
+      grep -q subprocess "$f" || { echo "use the subprocess module"; exit 1; }
+      [ "$(python3 "$f" 101)" = "OK" ] || { echo "threshold 101 should print OK"; exit 1; }
+      out=$(python3 "$f" 0); code=$?
+      [ $code -eq 1 ] && [ "$out" = "ALERT" ] || { echo "threshold 0 should print ALERT and exit 1"; exit 1; }
+    solution: |
+      cat > /root/tools/check_disk.py <<'PY'
+      import subprocess
+      import sys
+
+      threshold = int(sys.argv[1])
+      out = subprocess.run(["df", "-P", "/"], capture_output=True, text=True, check=True).stdout
+      used = int(out.splitlines()[1].split()[4].rstrip("%"))
+      if used >= threshold:
+          print("ALERT")
+          sys.exit(1)
+      print("OK")
+      PY

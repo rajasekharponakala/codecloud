@@ -30,6 +30,8 @@ export function loadConfig(overrides = {}) {
       network: process.env.CODECLOUD_LAB_NETWORK || 'bridge',
       // Optional PEM bundle mounted as the lab's system CA store, for TLS-intercepting egress proxies.
       caBundle: process.env.CODECLOUD_LAB_CA_BUNDLE || undefined,
+      // Registry holding pre-built lab images (see .github/workflows/lab-images.yml), e.g. ghcr.io/acme/codecloud-labs.
+      imageRegistry: process.env.CODECLOUD_LAB_IMAGE_REGISTRY || undefined,
     },
     labs: {
       maxActivePerUser: int('CODECLOUD_MAX_LABS_PER_USER', 2),

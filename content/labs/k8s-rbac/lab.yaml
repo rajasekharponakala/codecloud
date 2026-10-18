@@ -1,0 +1,89 @@
+id: k8s-rbac
+title: "Kubernetes security: RBAC, service accounts and security contexts"
+description: Grant least-privilege access with Roles and RoleBindings and run containers as non-root.
+difficulty: advanced
+duration_minutes: 60
+tags: [kubernetes, security]
+environment:
+  build: ../../images/k8s-tools
+  command: [server, --disable=traefik, --disable=metrics-server, --write-kubeconfig-mode=644, "--kubelet-arg=fail-cgroupv1=false"]
+  privileged: true
+  memory_mb: 2048
+  cpus: 2
+  pids_limit: 4096
+  shell: /bin/sh
+  hostname: controlplane
+  env:
+    KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+  ready_check: kubectl get nodes --no-headers 2>/dev/null | grep -q " Ready" && kubectl get serviceaccount default >/dev/null 2>&1
+  ready_timeout_seconds: 240
+  setup: kubectl create namespace dev
+tasks:
+  - id: scope-quiz
+    type: quiz
+    prompt: Which object grants permissions across all namespaces?
+    options: [Role, RoleBinding, ClusterRole bound with a ClusterRoleBinding, ServiceAccount]
+    answer: 2
+  - id: service-account
+    type: task
+    prompt: Create a ServiceAccount `ci-bot` in namespace `dev`.
+    check: |
+      kubectl -n dev get serviceaccount ci-bot >/dev/null 2>&1 || { echo "serviceaccount dev/ci-bot not found"; exit 1; }
+    solution: kubectl -n dev create serviceaccount ci-bot
+  - id: role-binding
+    type: task
+    prompt: |
+      Let `ci-bot` **get, list and watch pods** and **create deployments** in `dev` only — nothing
+      else. Use a Role `ci-deployer` and a RoleBinding `ci-deployer`.
+    check: |
+      sa=system:serviceaccount:dev:ci-bot
+      can() { kubectl auth can-i "$@" --as=$sa 2>/dev/null; }
+      [ "$(can list pods -n dev)" = "yes" ] || { echo "ci-bot cannot list pods in dev"; exit 1; }
+      [ "$(can watch pods -n dev)" = "yes" ] || { echo "ci-bot cannot watch pods in dev"; exit 1; }
+      [ "$(can create deployments.apps -n dev)" = "yes" ] || { echo "ci-bot cannot create deployments in dev"; exit 1; }
+      [ "$(can delete pods -n dev)" = "no" ] || { echo "ci-bot can delete pods — too much access"; exit 1; }
+      [ "$(can get secrets -n dev)" = "no" ] || { echo "ci-bot can read secrets — too much access"; exit 1; }
+      [ "$(can list pods -n default)" = "no" ] || { echo "ci-bot has access outside dev"; exit 1; }
+      kubectl -n dev get role ci-deployer >/dev/null 2>&1 || { echo "role ci-deployer not found"; exit 1; }
+      kubectl -n dev get rolebinding ci-deployer >/dev/null 2>&1 || { echo "rolebinding ci-deployer not found"; exit 1; }
+    solution: |
+      kubectl -n dev create role ci-deployer --verb=get,list,watch --resource=pods
+      kubectl -n dev patch role ci-deployer --type=json -p '[{"op":"add","path":"/rules/-","value":{"apiGroups":["apps"],"resources":["deployments"],"verbs":["create"]}}]'
+      kubectl -n dev create rolebinding ci-deployer --role=ci-deployer --serviceaccount=dev:ci-bot
+  - id: non-root
+    type: task
+    prompt: |
+      In `dev`, create a pod `hardened` (image `busybox:1.37`, command `sleep 3600`) that runs as
+      user `1000`, sets `runAsNonRoot: true`, has a read-only root filesystem, disallows privilege
+      escalation, and drops `ALL` capabilities.
+    check: |
+      p() { kubectl -n dev get pod hardened -o jsonpath="$1" 2>/dev/null; }
+      [ -n "$(p '{.metadata.name}')" ] || { echo "pod dev/hardened not found"; exit 1; }
+      uid=$(p '{.spec.securityContext.runAsUser}'); [ -z "$uid" ] && uid=$(p '{.spec.containers[0].securityContext.runAsUser}')
+      [ "$uid" = "1000" ] || { echo "hardened does not run as user 1000"; exit 1; }
+      nr=$(p '{.spec.securityContext.runAsNonRoot}'); [ -z "$nr" ] && nr=$(p '{.spec.containers[0].securityContext.runAsNonRoot}')
+      [ "$nr" = "true" ] || { echo "runAsNonRoot is not true"; exit 1; }
+      [ "$(p '{.spec.containers[0].securityContext.readOnlyRootFilesystem}')" = "true" ] || { echo "root filesystem is not read-only"; exit 1; }
+      [ "$(p '{.spec.containers[0].securityContext.allowPrivilegeEscalation}')" = "false" ] || { echo "privilege escalation is allowed"; exit 1; }
+      p '{.spec.containers[0].securityContext.capabilities.drop}' | grep -q ALL || { echo "capabilities ALL are not dropped"; exit 1; }
+    solution: |
+      cat <<'YAML' | kubectl apply -f -
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: hardened
+        namespace: dev
+      spec:
+        securityContext:
+          runAsUser: 1000
+          runAsNonRoot: true
+        containers:
+          - name: app
+            image: busybox:1.37
+            command: [sleep, "3600"]
+            securityContext:
+              readOnlyRootFilesystem: true
+              allowPrivilegeEscalation: false
+              capabilities:
+                drop: [ALL]
+      YAML

@@ -16,6 +16,7 @@ Docker engine or Kubernetes cluster in the browser, and free-form playgrounds.
 
 How the original works, and how this was reverse engineered and mapped to open-source parts:
 [docs/how-kodekloud-works.md](docs/how-kodekloud-works.md).
+Catalog, edX and CI automation: [docs/catalog.md](docs/catalog.md).
 Internals: [docs/architecture.md](docs/architecture.md).
 Library choices: [docs/foss-choices.md](docs/foss-choices.md).
 
@@ -35,29 +36,40 @@ Or with Docker Compose:
 CODECLOUD_SESSION_SECRET=$(openssl rand -hex 32) docker compose up -d --build
 ```
 
-Create an account in the UI, open **Courses**, **Labs** or **Playgrounds**, and start one.
+Create an account in the UI, open the **Catalog**, **Labs** or **Playgrounds**, and start one.
 The first start of each lab pulls its image, so it takes longer.
 
 > The platform controls Docker, and the Docker and Kubernetes labs run privileged containers.
 > Run it on a dedicated host and read [Isolation](docs/architecture.md#isolation) before
 > exposing it to untrusted users.
 
-## Included content
+## Course catalog
 
-| Course | Labs |
-|---|---|
-| Linux Foundations | `linux-files` (files, permissions, users), `linux-processes` (processes, pipes) |
-| Containers and Kubernetes | `docker-basics` (Docker-in-Docker), `kubernetes-pods` (k3s) |
-| Playgrounds | `playground-ubuntu` (built from a Dockerfile), `playground-kubernetes` |
+**20 courses, 21 auto-graded labs, 3 playgrounds and 4 learning paths**, covering DevOps
+foundations, Linux, networking, Git, Bash, Python, Docker and Compose, Kubernetes (workloads,
+configuration, storage, networking, RBAC), Helm, OpenTofu, Ansible, CI/CD with GitHub Actions,
+Prometheus, NGINX, PostgreSQL and AWS (emulated with Moto). Courses from **edX** appear alongside
+them, and every course can be exported to **Open edX**. See [docs/catalog.md](docs/catalog.md).
+
+Heavy and scheduled work runs in **GitHub Actions**: nightly smoke tests of every lab, weekly
+lab-image builds pushed to GHCR, a weekly edX catalog sync that opens a PR, and Open edX exports
+on every content change.
 
 ## Writing labs
 
 ```bash
-npm run validate-content                       # schema-check all courses and labs
+npm run validate-content                       # schema-check all courses, labs and the catalog
 node src/cli.js test-lab linux-files --solve   # boot the lab, run every solution, verify every check
 ```
 
 The lab format is documented in [docs/architecture.md](docs/architecture.md#authoring-labs).
+
+## edX and Open edX
+
+```bash
+node scripts/sync-edx.js                                          # refresh edX courses in the catalog
+CODECLOUD_PUBLIC_URL=https://labs.example.org node scripts/export-olx.js   # Open edX course archives
+```
 
 ## Development
 

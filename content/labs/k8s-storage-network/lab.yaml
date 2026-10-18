@@ -1,0 +1,130 @@
+id: k8s-storage-network
+title: "Kubernetes: persistent volumes and network policies"
+description: Give workloads durable storage with PersistentVolumeClaims and control traffic between pods with NetworkPolicies.
+difficulty: intermediate
+duration_minutes: 60
+tags: [kubernetes, storage, networking]
+environment:
+  build: ../../images/k8s-tools
+  command: [server, --disable=traefik, --disable=metrics-server, --write-kubeconfig-mode=644, "--kubelet-arg=fail-cgroupv1=false"]
+  privileged: true
+  memory_mb: 2048
+  cpus: 2
+  pids_limit: 4096
+  shell: /bin/sh
+  hostname: controlplane
+  env:
+    KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+  ready_check: kubectl get nodes --no-headers 2>/dev/null | grep -q " Ready" && kubectl get serviceaccount default >/dev/null 2>&1
+  ready_timeout_seconds: 240
+  setup: |
+    kubectl create namespace shop
+    kubectl -n shop run api --image=nginx:alpine --labels=app=api --port=80
+    kubectl -n shop run frontend --image=nginx:alpine --labels=role=frontend
+tasks:
+  - id: access-quiz
+    type: quiz
+    prompt: Which access mode lets a volume be mounted read-write by a single node?
+    options: [ReadOnlyMany, ReadWriteMany, ReadWriteOnce, ReadWriteOncePod]
+    answer: 2
+  - id: pvc
+    type: task
+    prompt: In namespace `shop`, create a PersistentVolumeClaim `data` requesting `1Gi`, access mode `ReadWriteOnce`, storage class `local-path`.
+    check: |
+      c() { kubectl -n shop get pvc data -o jsonpath="$1" 2>/dev/null; }
+      [ "$(c '{.spec.resources.requests.storage}')" = "1Gi" ] || { echo "pvc data does not request 1Gi"; exit 1; }
+      [ "$(c '{.spec.storageClassName}')" = "local-path" ] || { echo "pvc data does not use local-path"; exit 1; }
+      c '{.spec.accessModes}' | grep -q ReadWriteOnce || { echo "pvc data is not ReadWriteOnce"; exit 1; }
+    solution: |
+      cat <<'YAML' | kubectl apply -f -
+      apiVersion: v1
+      kind: PersistentVolumeClaim
+      metadata:
+        name: data
+        namespace: shop
+      spec:
+        accessModes: [ReadWriteOnce]
+        storageClassName: local-path
+        resources:
+          requests:
+            storage: 1Gi
+      YAML
+  - id: writer
+    type: task
+    prompt: |
+      In `shop`, create a pod `writer` (image `busybox:1.37`, command `sleep 3600`) that mounts
+      the claim `data` at `/data`.
+    check: |
+      [ "$(kubectl -n shop get pod writer -o jsonpath='{.spec.volumes[?(@.persistentVolumeClaim.claimName=="data")].name}' 2>/dev/null)" != "" ] || { echo "writer does not use the data claim"; exit 1; }
+      kubectl -n shop get pod writer -o jsonpath='{.spec.containers[0].volumeMounts[*].mountPath}' | grep -qw /data || { echo "the claim is not mounted at /data"; exit 1; }
+    solution: |
+      cat <<'YAML' | kubectl apply -f -
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: writer
+        namespace: shop
+      spec:
+        containers:
+          - name: writer
+            image: busybox:1.37
+            command: [sleep, "3600"]
+            volumeMounts:
+              - name: data
+                mountPath: /data
+        volumes:
+          - name: data
+            persistentVolumeClaim:
+              claimName: data
+      YAML
+  - id: deny-all
+    type: task
+    prompt: In `shop`, create a NetworkPolicy `default-deny-ingress` that blocks all ingress traffic to every pod in the namespace.
+    check: |
+      n() { kubectl -n shop get networkpolicy default-deny-ingress -o jsonpath="$1" 2>/dev/null; }
+      [ -n "$(n '{.metadata.name}')" ] || { echo "networkpolicy default-deny-ingress not found"; exit 1; }
+      [ "$(n '{.spec.podSelector}')" = "{}" ] || { echo "the policy must select every pod (podSelector: {})"; exit 1; }
+      n '{.spec.policyTypes}' | grep -q Ingress || { echo "policyTypes must include Ingress"; exit 1; }
+      [ -z "$(n '{.spec.ingress}')" ] || { echo "the policy must not allow any ingress"; exit 1; }
+    solution: |
+      cat <<'YAML' | kubectl apply -f -
+      apiVersion: networking.k8s.io/v1
+      kind: NetworkPolicy
+      metadata:
+        name: default-deny-ingress
+        namespace: shop
+      spec:
+        podSelector: {}
+        policyTypes: [Ingress]
+      YAML
+  - id: allow-frontend
+    type: task
+    prompt: |
+      Add a NetworkPolicy `allow-frontend-to-api` in `shop` that allows pods labelled
+      `role=frontend` to reach pods labelled `app=api` on TCP port `80`.
+    check: |
+      n() { kubectl -n shop get networkpolicy allow-frontend-to-api -o jsonpath="$1" 2>/dev/null; }
+      [ "$(n '{.spec.podSelector.matchLabels.app}')" = "api" ] || { echo "the policy must select app=api pods"; exit 1; }
+      [ "$(n '{.spec.ingress[0].from[0].podSelector.matchLabels.role}')" = "frontend" ] || { echo "ingress must come from role=frontend pods"; exit 1; }
+      [ "$(n '{.spec.ingress[0].ports[0].port}')" = "80" ] || { echo "ingress must be limited to port 80"; exit 1; }
+    solution: |
+      cat <<'YAML' | kubectl apply -f -
+      apiVersion: networking.k8s.io/v1
+      kind: NetworkPolicy
+      metadata:
+        name: allow-frontend-to-api
+        namespace: shop
+      spec:
+        podSelector:
+          matchLabels:
+            app: api
+        policyTypes: [Ingress]
+        ingress:
+          - from:
+              - podSelector:
+                  matchLabels:
+                    role: frontend
+            ports:
+              - protocol: TCP
+                port: 80
+      YAML

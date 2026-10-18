@@ -1,0 +1,21 @@
+id: devops-foundations
+title: DevOps Foundations
+description: What DevOps is, why it exists, and the practices and tools that make fast, safe software delivery possible.
+level: beginner
+category: devops
+tags: [devops, sdlc, culture]
+duration_hours: 2
+lessons:
+  - id: what-is-devops
+    title: What DevOps is (and is not)
+    file: lessons/01-what-is-devops.md
+  - id: delivery-lifecycle
+    title: The software delivery lifecycle and its toolchain
+    file: lessons/02-delivery-lifecycle.md
+  - id: measuring-delivery
+    title: Measuring delivery with DORA metrics
+    file: lessons/03-measuring-delivery.md
+  - id: practice-environment
+    title: "Your practice environment: a first look"
+    file: lessons/04-practice-environment.md
+    lab: playground-ubuntu

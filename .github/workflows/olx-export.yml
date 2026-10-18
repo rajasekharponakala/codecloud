@@ -1,0 +1,42 @@
+# Exports every course as an Open edX OLX archive (importable in Studio → Tools → Import).
+# Archives are kept as workflow artifacts and attached to GitHub releases.
+name: Open edX export
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - content/**
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Export OLX
+        env:
+          # Public URL of your CodeCloud instance, used for "open the lab" links (repository variable).
+          CODECLOUD_PUBLIC_URL: ${{ vars.CODECLOUD_PUBLIC_URL }}
+        run: node scripts/export-olx.js --out dist/olx
+      - uses: actions/upload-artifact@v7
+        with:
+          name: open-edx-courses
+          path: dist/olx/*.tar.gz
+          retention-days: 30
+      - name: Attach to release
+        if: github.event_name == 'release'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.event.release.tag_name }}
+        run: gh release upload "$TAG" dist/olx/*.tar.gz --clobber

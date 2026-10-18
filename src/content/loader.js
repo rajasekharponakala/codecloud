@@ -3,7 +3,7 @@ import path from 'node:path';
 import YAML from 'yaml';
 import { marked } from 'marked';
 import sanitizeHtml from 'sanitize-html';
-import { courseSchema, labSchema } from './schema.js';
+import { catalogSchema, courseSchema, externalCatalogSchema, labSchema } from './schema.js';
 
 export class ContentError extends Error {}
 
@@ -46,13 +46,17 @@ export function loadContent(contentDir) {
       errors.push(formatIssues(file, parsed.error));
       continue;
     }
+    // Images built from a directory are named after it, so labs can share e.g. content/images/workstation.
+    const buildDir = parsed.data.environment.build && path.resolve(dir, parsed.data.environment.build);
     const lab = {
       ...parsed.data,
       dir,
+      buildDir,
+      imageName: buildDir ? path.basename(buildDir) : null,
       description_html: renderMarkdown(parsed.data.description),
       tasks: parsed.data.tasks.map((task) => ({ ...task, prompt_html: renderMarkdown(task.prompt) })),
     };
-    if (lab.environment.build && !fs.existsSync(path.join(dir, lab.environment.build, 'Dockerfile'))) {
+    if (buildDir && !fs.existsSync(path.join(buildDir, 'Dockerfile'))) {
       errors.push(`${file}: environment.build "${lab.environment.build}" has no Dockerfile`);
     }
     if (labs.has(lab.id)) errors.push(`${file}: duplicate lab id "${lab.id}"`);
@@ -82,8 +86,47 @@ export function loadContent(contentDir) {
     courses.set(course.id, { ...course, lessons });
   }
 
+  const catalogFile = path.join(contentDir, 'catalog.yaml');
+  let catalog = { categories: [], paths: [] };
+  if (!fs.existsSync(catalogFile)) {
+    errors.push(`${catalogFile}: missing`);
+  } else {
+    const parsed = catalogSchema.safeParse(readYaml(catalogFile));
+    if (parsed.success) catalog = parsed.data;
+    else errors.push(formatIssues(catalogFile, parsed.error));
+  }
+  const categoryIds = new Set(catalog.categories.map((c) => c.id));
+  for (const course of courses.values()) {
+    if (catalog.categories.length && !categoryIds.has(course.category)) {
+      errors.push(`course "${course.id}": unknown category "${course.category}" (add it to catalog.yaml)`);
+    }
+  }
+  for (const learningPath of catalog.paths) {
+    for (const courseId of learningPath.courses) {
+      if (!courses.has(courseId)) errors.push(`${catalogFile}: path "${learningPath.id}" references unknown course "${courseId}"`);
+    }
+  }
+
+  const external = [];
+  const externalDir = path.join(contentDir, 'external');
+  if (fs.existsSync(externalDir)) {
+    for (const name of fs.readdirSync(externalDir).filter((f) => f.endsWith('.json')).sort()) {
+      const file = path.join(externalDir, name);
+      const parsed = externalCatalogSchema.safeParse(JSON.parse(fs.readFileSync(file, 'utf8')));
+      if (!parsed.success) {
+        errors.push(formatIssues(file, parsed.error));
+        continue;
+      }
+      for (const course of parsed.data.courses) {
+        if (!categoryIds.has(course.category)) errors.push(`${file}: course "${course.id}" has unknown category "${course.category}"`);
+        // A lab may have been removed since the last sync; drop stale links rather than fail.
+        external.push({ ...course, related_labs: course.related_labs.filter((labId) => labs.has(labId)) });
+      }
+    }
+  }
+
   if (errors.length) throw new ContentError(`Invalid content:\n${errors.join('\n')}`);
-  return { labs, courses };
+  return { labs, courses, catalog, external };
 }
 
 /** The view of a lab that is safe to send to learners: no answers, checks or solutions. */

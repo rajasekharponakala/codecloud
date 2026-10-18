@@ -1,0 +1,16 @@
+id: docker-fundamentals
+title: Docker Fundamentals
+description: Images, containers, ports, volumes and Dockerfiles — then multi-container applications with Docker Compose.
+level: beginner
+category: containers
+tags: [docker, containers, compose]
+duration_hours: 4
+lessons:
+  - id: images-and-containers
+    title: Images, containers and Dockerfiles
+    file: lessons/01-images-and-containers.md
+    lab: docker-basics
+  - id: compose
+    title: Multi-container apps with Docker Compose
+    file: lessons/02-compose.md
+    lab: docker-compose

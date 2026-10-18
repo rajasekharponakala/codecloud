@@ -51,14 +51,37 @@ export async function apiRoutes(app, { auth, labs, content, config }) {
 
   app.get('/me', async (request) => ({ user: request.session.get('user') ?? null }));
 
-  app.get('/courses', async () => ({
-    courses: [...content.courses.values()].map((c) => ({
-      id: c.id,
-      title: c.title,
-      description: c.description,
-      level: c.level,
-      lesson_count: c.lessons.length,
-    })),
+  const courseSummary = (c) => ({
+    id: c.id,
+    title: c.title,
+    description: c.description,
+    level: c.level,
+    category: c.category,
+    tags: c.tags,
+    duration_hours: c.duration_hours ?? null,
+    lesson_count: c.lessons.length,
+    lab_count: c.lessons.filter((l) => l.lab).length,
+  });
+
+  // Catalog order: category order from catalog.yaml, then beginner → advanced, then title.
+  const levels = ['beginner', 'intermediate', 'advanced'];
+  const categoryOrder = content.catalog.categories.map((c) => c.id);
+  const orderedCourses = [...content.courses.values()].sort(
+    (a, b) =>
+      categoryOrder.indexOf(a.category) - categoryOrder.indexOf(b.category) ||
+      levels.indexOf(a.level) - levels.indexOf(b.level) ||
+      a.title.localeCompare(b.title),
+  );
+
+  app.get('/courses', async () => ({ courses: orderedCourses.map(courseSummary) }));
+
+  // Everything the catalog page needs in one request: native courses, learning paths and
+  // courses synced from edX (see scripts/sync-edx.js).
+  app.get('/catalog', async () => ({
+    categories: content.catalog.categories,
+    paths: content.catalog.paths,
+    courses: orderedCourses.map(courseSummary),
+    external: content.external,
   }));
 
   app.get('/courses/:courseId', async (request, reply) => {

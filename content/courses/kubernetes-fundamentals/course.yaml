@@ -1,0 +1,15 @@
+id: kubernetes-fundamentals
+title: Kubernetes Fundamentals
+description: The Kubernetes architecture and core objects — pods, deployments and services — on a real cluster.
+level: intermediate
+category: kubernetes
+tags: [kubernetes, k8s, cka]
+duration_hours: 4
+lessons:
+  - id: architecture
+    title: Kubernetes architecture
+    file: lessons/00-architecture.md
+  - id: kubernetes-workloads
+    title: Workloads and services
+    file: lessons/01-workloads-and-services.md
+    lab: kubernetes-pods

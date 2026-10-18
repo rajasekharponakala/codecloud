@@ -1,0 +1,109 @@
+# Heavy content checks: boots every lab in Docker, verifies that no check passes on a fresh
+# environment and that every task's reference solution makes its check pass.
+# Pull requests test only the labs they affect; the nightly run tests everything.
+name: Lab smoke tests
+
+on:
+  pull_request:
+    paths:
+      - content/labs/**
+      - content/images/**
+      - src/runtime/**
+      - src/content/**
+      - src/cli.js
+  schedule:
+    - cron: "17 2 * * *"   # nightly, 02:17 UTC
+  workflow_dispatch:
+    inputs:
+      labs:
+        description: Space-separated lab ids (empty = all labs)
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+  packages: read
+
+jobs:
+  plan:
+    name: Select labs
+    runs-on: ubuntu-latest
+    outputs:
+      labs: ${{ steps.select.outputs.labs }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - id: select
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          INPUT_LABS: ${{ inputs.labs }}
+        run: |
+          if [ "$EVENT" = "pull_request" ]; then
+            git diff --name-only "$BASE_SHA"...HEAD > "$RUNNER_TEMP/changed.txt"
+            labs=$(node scripts/list-labs.js --changed-files "$RUNNER_TEMP/changed.txt")
+          elif [ -n "$INPUT_LABS" ]; then
+            labs=$(echo "$INPUT_LABS" | tr -s ' ' '\n' | jq -R . | jq -cs 'map(select(length > 0))')
+          else
+            labs=$(node scripts/list-labs.js)
+          fi
+          echo "labs=$labs" >> "$GITHUB_OUTPUT"
+          echo "Selected: $labs"
+
+  smoke:
+    name: ${{ matrix.lab }}
+    needs: plan
+    if: needs.plan.outputs.labs != '[]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      max-parallel: 8
+      matrix:
+        lab: ${{ fromJSON(needs.plan.outputs.labs) }}
+    env:
+      # Scheduled runs test the images published by lab-images.yml; pull requests build images
+      # from their own Dockerfiles so image changes are tested before they are published.
+      CODECLOUD_LAB_IMAGE_REGISTRY: ${{ github.event_name != 'pull_request' && format('ghcr.io/{0}/codecloud-labs', github.repository_owner) || '' }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - env:
+          LAB: ${{ matrix.lab }}
+        run: node src/cli.js test-lab "$LAB" --solve
+
+  report:
+    name: Report nightly failures
+    needs: [plan, smoke]
+    if: always() && github.event_name == 'schedule' && needs.smoke.result == 'failure'
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      - env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          title="Nightly lab smoke tests are failing"
+          existing=$(gh issue list --state open --search "in:title \"$title\"" --json number --jq '.[0].number')
+          if [ -n "$existing" ]; then
+            gh issue comment "$existing" --body "Still failing: $RUN_URL"
+          else
+            gh issue create --title "$title" --body "One or more labs failed their smoke test: $RUN_URL"
+          fi

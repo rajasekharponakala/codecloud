@@ -1,0 +1,15 @@
+id: helm-fundamentals
+title: Helm Fundamentals
+description: Package, configure, install, upgrade and roll back Kubernetes applications with Helm charts.
+level: intermediate
+category: kubernetes
+tags: [helm, kubernetes, packaging]
+duration_hours: 2
+lessons:
+  - id: charts
+    title: Charts, templates and values
+    file: lessons/01-charts.md
+  - id: releases
+    title: Releases, upgrades and rollbacks
+    file: lessons/02-releases.md
+    lab: helm-basics

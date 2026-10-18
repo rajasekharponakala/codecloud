@@ -1,0 +1,77 @@
+id: docker-compose
+title: "Docker Compose: multi-container applications"
+description: Describe a web app and its cache in a Compose file, run it, inspect it and tear it down.
+difficulty: intermediate
+duration_minutes: 45
+tags: [docker, containers]
+environment:
+  image: docker:29-dind
+  command: []
+  privileged: true
+  memory_mb: 1024
+  cpus: 1
+  shell: /bin/sh
+  hostname: docker-host
+  env:
+    DOCKER_TLS_CERTDIR: ""
+  ready_check: docker info >/dev/null 2>&1
+  ready_timeout_seconds: 90
+  setup: |
+    mkdir -p /root/shop/html
+    echo '<h1>shop</h1>' > /root/shop/html/index.html
+tasks:
+  - id: compose-quiz
+    type: quiz
+    prompt: How do containers in the same Compose project find each other by default?
+    options:
+      - By IP addresses you hard-code
+      - By service name, through the project's network DNS
+      - Through environment variables only
+      - They cannot talk to each other
+    answer: 1
+  - id: compose-file
+    type: task
+    prompt: |
+      Write `/root/shop/compose.yaml` with two services:
+      * `web`: image `nginx:alpine`, publishes host port `8080` to container port `80`, and mounts
+        `./html` read-only at `/usr/share/nginx/html`;
+      * `cache`: image `redis:7-alpine`.
+      It must pass `docker compose config`.
+    check: |
+      cd /root/shop 2>/dev/null || exit 1
+      cfg=$(docker compose config --format json 2>&1) || { echo "docker compose config failed: $cfg"; exit 1; }
+      echo "$cfg" | grep -q '"image": "nginx:alpine"' || { echo "web must use nginx:alpine"; exit 1; }
+      echo "$cfg" | grep -q '"image": "redis:7-alpine"' || { echo "cache must use redis:7-alpine"; exit 1; }
+      echo "$cfg" | grep -q '"published": "8080"' || { echo "web must publish port 8080"; exit 1; }
+      echo "$cfg" | grep -q '"target": "/usr/share/nginx/html"' || { echo "html is not mounted into web"; exit 1; }
+    solution: |
+      cat > /root/shop/compose.yaml <<'YAML'
+      services:
+        web:
+          image: nginx:alpine
+          ports:
+            - "8080:80"
+          volumes:
+            - ./html:/usr/share/nginx/html:ro
+        cache:
+          image: redis:7-alpine
+      YAML
+  - id: compose-up
+    type: task
+    prompt: Start the project in the background and make sure `http://localhost:8080` serves the shop page.
+    check: |
+      cd /root/shop || exit 1
+      running=$(docker compose ps --services --status running 2>/dev/null | sort | tr '\n' ' ')
+      [ "$running" = "cache web " ] || { echo "running services: ${running:-none}"; exit 1; }
+      wget -qO- http://127.0.0.1:8080 | grep -q shop || { echo "port 8080 does not serve the shop page"; exit 1; }
+    solution: |
+      cd /root/shop && docker compose up -d
+      sleep 2
+  - id: compose-exec
+    type: task
+    prompt: Using `docker compose exec`, store the key `visits` with value `42` in the `cache` service's Redis.
+    hint: "`docker compose exec cache redis-cli SET visits 42`"
+    check: |
+      cd /root/shop || exit 1
+      [ "$(docker compose exec -T cache redis-cli GET visits 2>/dev/null | tr -d '\r')" = "42" ] || { echo "visits is not 42"; exit 1; }
+    solution: cd /root/shop && docker compose exec -T cache redis-cli SET visits 42

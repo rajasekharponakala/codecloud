@@ -1,0 +1,15 @@
+id: prometheus-fundamentals
+title: Monitoring with Prometheus
+description: Metrics-based monitoring — the Prometheus data model, scraping, PromQL, recording and alerting rules.
+level: intermediate
+category: observability
+tags: [prometheus, monitoring, promql, observability]
+duration_hours: 3
+lessons:
+  - id: observability
+    title: Observability and the Prometheus model
+    file: lessons/01-observability.md
+  - id: promql
+    title: PromQL, recording rules and alerts
+    file: lessons/02-promql.md
+    lab: prometheus-basics

@@ -1,0 +1,15 @@
+id: kubernetes-security
+title: "Kubernetes Security Essentials"
+description: Authentication and RBAC, service accounts, security contexts and Pod Security Standards.
+level: advanced
+category: security
+tags: [kubernetes, rbac, security, cks]
+duration_hours: 3
+lessons:
+  - id: rbac
+    title: Authentication, authorization and RBAC
+    file: lessons/01-rbac.md
+  - id: pod-security
+    title: Security contexts and Pod Security Standards
+    file: lessons/02-pod-security.md
+    lab: k8s-rbac

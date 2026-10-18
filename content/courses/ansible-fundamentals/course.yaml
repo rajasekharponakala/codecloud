@@ -1,0 +1,18 @@
+id: ansible-fundamentals
+title: Ansible Fundamentals
+description: Agentless configuration management — inventories, ad-hoc commands, idempotent playbooks, templates and roles.
+level: intermediate
+category: config-management
+tags: [ansible, automation, configuration-management]
+duration_hours: 4
+lessons:
+  - id: inventory-and-adhoc
+    title: Inventories, modules and ad-hoc commands
+    file: lessons/01-inventory-and-adhoc.md
+  - id: playbooks
+    title: Playbooks, variables, templates and handlers
+    file: lessons/02-playbooks.md
+    lab: ansible-basics
+  - id: roles
+    title: Roles, collections and good practice
+    file: lessons/03-roles.md

@@ -1,0 +1,80 @@
+id: git-basics
+title: "Git: commits, branches, merges and tags"
+description: Create a repository, work on a feature branch, merge it, and tag a release.
+difficulty: beginner
+duration_minutes: 40
+tags: [git]
+environment:
+  build: ../../images/workstation
+  memory_mb: 256
+  cpus: 0.5
+  setup: |
+    mkdir -p /root/webapp
+    printf '# Webapp\n' > /root/webapp/README.md
+    printf 'print("hello")\n' > /root/webapp/app.py
+tasks:
+  - id: staging-quiz
+    type: quiz
+    prompt: What does `git add` do?
+    options:
+      - Uploads changes to the remote
+      - Records changes in the staging area for the next commit
+      - Creates a new branch
+      - Creates a commit
+    answer: 1
+  - id: init
+    type: task
+    prompt: |
+      Configure Git with the name `CodeCloud Learner` and the email `learner@codecloud.local`
+      (globally), turn `/root/webapp` into a repository whose default branch is `main`, and commit
+      both files with the message `Initial commit`.
+    check: |
+      cd /root/webapp 2>/dev/null && git rev-parse --git-dir >/dev/null 2>&1 || { echo "/root/webapp is not a git repository"; exit 1; }
+      [ "$(git config --global user.email)" = "learner@codecloud.local" ] || { echo "user.email is not set"; exit 1; }
+      git rev-parse --verify -q main >/dev/null || { echo "there is no main branch"; exit 1; }
+      git log main --format=%s | grep -qx 'Initial commit' || { echo "no commit named 'Initial commit' on main"; exit 1; }
+      git ls-tree -r --name-only main | grep -qx app.py || { echo "app.py is not committed"; exit 1; }
+    solution: |
+      git config --global user.name "CodeCloud Learner"
+      git config --global user.email learner@codecloud.local
+      cd /root/webapp
+      git init -b main
+      git add README.md app.py
+      git commit -m "Initial commit"
+  - id: feature-branch
+    type: task
+    prompt: |
+      Create a branch `feature/health` from `main`. On it, add a file `health.py` containing
+      `STATUS = "ok"` and commit it.
+    check: |
+      cd /root/webapp || exit 1
+      git rev-parse --verify -q feature/health >/dev/null || { echo "branch feature/health does not exist"; exit 1; }
+      git show feature/health:health.py 2>/dev/null | grep -q 'STATUS = "ok"' || { echo "health.py is not committed on feature/health"; exit 1; }
+    solution: |
+      cd /root/webapp
+      git switch -c feature/health
+      echo 'STATUS = "ok"' > health.py
+      git add health.py
+      git commit -m "Add health status"
+  - id: merge
+    type: task
+    prompt: Merge `feature/health` into `main` with a merge commit (no fast-forward), and leave `main` checked out.
+    check: |
+      cd /root/webapp || exit 1
+      [ "$(git branch --show-current)" = "main" ] || { echo "main is not checked out"; exit 1; }
+      git merge-base --is-ancestor feature/health main || { echo "feature/health is not merged into main"; exit 1; }
+      [ "$(git rev-list --merges --count main)" -ge 1 ] || { echo "no merge commit on main"; exit 1; }
+    solution: |
+      cd /root/webapp
+      git switch main
+      git merge --no-ff feature/health -m "Merge feature/health"
+  - id: tag
+    type: task
+    prompt: Create an annotated tag `v1.0.0` on the tip of `main` with the message `First release`.
+    check: |
+      cd /root/webapp || exit 1
+      [ "$(git cat-file -t v1.0.0 2>/dev/null)" = "tag" ] || { echo "v1.0.0 is missing or not annotated"; exit 1; }
+      [ "$(git rev-parse 'v1.0.0^{commit}')" = "$(git rev-parse main)" ] || { echo "v1.0.0 does not point at main"; exit 1; }
+    solution: |
+      cd /root/webapp
+      git tag -a v1.0.0 -m "First release"

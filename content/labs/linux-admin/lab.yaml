@@ -1,0 +1,81 @@
+id: linux-admin
+title: "Linux: users, groups, sudo, packages and cron"
+description: Day-to-day administration on an Ubuntu server — accounts, privilege, software and scheduled jobs.
+difficulty: beginner
+duration_minutes: 40
+tags: [linux]
+environment:
+  build: ../../images/workstation
+  memory_mb: 512
+  cpus: 1
+  hostname: app-server
+  setup: |
+    mkdir -p /srv/shared
+    printf '#!/bin/sh\nfind /tmp -type f -mtime +7 -delete\n' > /usr/local/bin/cleanup.sh
+    chmod 755 /usr/local/bin/cleanup.sh
+tasks:
+  - id: uid-quiz
+    type: quiz
+    prompt: Which file stores local user accounts (name, UID, home directory, shell)?
+    options: [/etc/shadow, /etc/passwd, /etc/group, /etc/login.defs]
+    answer: 1
+    explanation: "`/etc/passwd` holds accounts; password hashes live in `/etc/shadow`."
+  - id: group
+    type: task
+    prompt: Create a group called `developers`.
+    check: |
+      getent group developers >/dev/null || { echo "group developers does not exist"; exit 1; }
+    solution: groupadd developers
+  - id: users
+    type: task
+    prompt: |
+      Create users `alice` and `bob`, each with a home directory and `/bin/bash` as login shell,
+      and make `developers` a supplementary group of both.
+    hint: "`useradd -m -s /bin/bash -G developers alice`"
+    check: |
+      for u in alice bob; do
+        id "$u" >/dev/null 2>&1 || { echo "user $u does not exist"; exit 1; }
+        [ -d "/home/$u" ] || { echo "/home/$u is missing"; exit 1; }
+        [ "$(getent passwd "$u" | cut -d: -f7)" = "/bin/bash" ] || { echo "$u does not use /bin/bash"; exit 1; }
+        id -nG "$u" | tr ' ' '\n' | grep -qx developers || { echo "$u is not in developers"; exit 1; }
+      done
+    solution: |
+      useradd -m -s /bin/bash -G developers alice
+      useradd -m -s /bin/bash -G developers bob
+  - id: shared-dir
+    type: task
+    prompt: |
+      Make `/srv/shared` owned by group `developers` with mode `2770`, so members can collaborate
+      and new files inherit the group (setgid).
+    check: |
+      [ "$(stat -c %G /srv/shared)" = "developers" ] || { echo "group owner is $(stat -c %G /srv/shared)"; exit 1; }
+      [ "$(stat -c %a /srv/shared)" = "2770" ] || { echo "mode is $(stat -c %a /srv/shared)"; exit 1; }
+    solution: |
+      chgrp developers /srv/shared
+      chmod 2770 /srv/shared
+  - id: sudoers
+    type: task
+    prompt: |
+      Allow members of `developers` to run `/usr/bin/apt-get` as root without a password.
+      Use a drop-in file at `/etc/sudoers.d/developers` (mode `0440`) and keep it valid.
+    hint: "`%developers ALL=(root) NOPASSWD: /usr/bin/apt-get`, then `visudo -cf /etc/sudoers.d/developers`"
+    check: |
+      f=/etc/sudoers.d/developers
+      [ -f "$f" ] || { echo "$f does not exist"; exit 1; }
+      [ "$(stat -c %a $f)" = "440" ] || { echo "$f mode is $(stat -c %a $f)"; exit 1; }
+      visudo -cf "$f" >/dev/null || { echo "$f has a syntax error"; exit 1; }
+      sudo -l -U alice | grep -q 'NOPASSWD: /usr/bin/apt-get' || { echo "alice cannot run apt-get without a password"; exit 1; }
+      sudo -l -U alice | grep -q '(ALL' && { echo "rule is broader than necessary"; exit 1; }
+      exit 0
+    solution: |
+      echo '%developers ALL=(root) NOPASSWD: /usr/bin/apt-get' > /etc/sudoers.d/developers
+      chmod 0440 /etc/sudoers.d/developers
+  - id: cron
+    type: task
+    prompt: Schedule `/usr/local/bin/cleanup.sh` to run as `root` every day at 02:30 using a file in `/etc/cron.d/` named `cleanup`.
+    hint: "System crontabs have a user column: `minute hour day month weekday user command`."
+    check: |
+      f=/etc/cron.d/cleanup
+      [ -f "$f" ] || { echo "$f does not exist"; exit 1; }
+      grep -Eq '^[[:space:]]*30[[:space:]]+2[[:space:]]+\*[[:space:]]+\*[[:space:]]+\*[[:space:]]+root[[:space:]]+/usr/local/bin/cleanup\.sh' "$f" || { echo "no entry running cleanup.sh as root at 02:30 daily"; exit 1; }
+    solution: echo '30 2 * * * root /usr/local/bin/cleanup.sh' > /etc/cron.d/cleanup

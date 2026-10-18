@@ -1,0 +1,87 @@
+id: ansible-basics
+title: "Ansible: inventories, ad-hoc commands, playbooks and templates"
+description: Automate server configuration declaratively with Ansible, and make your playbooks idempotent.
+difficulty: intermediate
+duration_minutes: 50
+tags: [ansible, configuration-management]
+environment:
+  build: ../../images/ansible
+  memory_mb: 512
+  cpus: 1
+  hostname: control-node
+  env:
+    ANSIBLE_HOST_KEY_CHECKING: "False"
+    ANSIBLE_NOCOLOR: "1"
+  setup: mkdir -p /root/ansible/templates
+tasks:
+  - id: idempotent-quiz
+    type: quiz
+    prompt: What does it mean for an Ansible task to be *idempotent*?
+    options:
+      - It runs in parallel on all hosts
+      - Running it again changes nothing if the system is already in the desired state
+      - It never fails
+      - It can only run once
+    answer: 1
+  - id: inventory
+    type: task
+    prompt: |
+      Create `/root/ansible/inventory.ini` with a group `web` containing the host `localhost`, using
+      `ansible_connection=local`. `ansible -i inventory.ini web -m ping` must succeed.
+    check: |
+      cd /root/ansible || exit 1
+      ansible-inventory -i inventory.ini --graph 2>/dev/null | grep -A1 '@web' | grep -q localhost || { echo "group web does not contain localhost"; exit 1; }
+      ansible -i inventory.ini web -m ping >/dev/null 2>&1 || { echo "ansible web -m ping failed"; exit 1; }
+    solution: printf '[web]\nlocalhost ansible_connection=local\n' > /root/ansible/inventory.ini
+  - id: playbook
+    type: task
+    prompt: |
+      Write `/root/ansible/site.yml`, a playbook for group `web` with variable `app_port: 8080`, that:
+      1. creates the system user `deploy`,
+      2. creates `/opt/webapp` owned by `deploy` with mode `0755`,
+      3. renders `templates/config.ini.j2` to `/opt/webapp/config.ini`; the template must produce
+         a line `port = 8080` from the variable.
+      Run it.
+    check: |
+      cd /root/ansible || exit 1
+      ansible-playbook -i inventory.ini site.yml --syntax-check >/dev/null 2>&1 || { echo "site.yml fails --syntax-check"; exit 1; }
+      id deploy >/dev/null 2>&1 || { echo "user deploy does not exist — did you run the playbook?"; exit 1; }
+      [ "$(stat -c '%U %a' /opt/webapp 2>/dev/null)" = "deploy 755" ] || { echo "/opt/webapp must be owned by deploy with mode 0755"; exit 1; }
+      grep -q '{{ *app_port *}}' templates/config.ini.j2 2>/dev/null || { echo "the template must use {{ app_port }}"; exit 1; }
+      grep -Eq '^port *= *8080$' /opt/webapp/config.ini 2>/dev/null || { echo "/opt/webapp/config.ini has no 'port = 8080' line"; exit 1; }
+    solution: |
+      cd /root/ansible
+      printf '[server]\nport = {{ app_port }}\n' > templates/config.ini.j2
+      cat > site.yml <<'YAML'
+      - name: Configure web servers
+        hosts: web
+        become: false
+        vars:
+          app_port: 8080
+        tasks:
+          - name: Create deploy user
+            ansible.builtin.user:
+              name: deploy
+              system: true
+          - name: Create application directory
+            ansible.builtin.file:
+              path: /opt/webapp
+              state: directory
+              owner: deploy
+              mode: "0755"
+          - name: Render configuration
+            ansible.builtin.template:
+              src: templates/config.ini.j2
+              dest: /opt/webapp/config.ini
+              owner: deploy
+              mode: "0644"
+      YAML
+      ansible-playbook -i inventory.ini site.yml
+  - id: idempotence
+    type: task
+    prompt: Prove the playbook is idempotent — a second run must report `changed=0`. (The check runs it again for you.)
+    check: |
+      cd /root/ansible || exit 1
+      out=$(ansible-playbook -i inventory.ini site.yml 2>&1) || { echo "the playbook failed"; exit 1; }
+      echo "$out" | grep -q 'changed=0' || { echo "a second run still changes things:"; echo "$out" | tail -3; exit 1; }
+    solution: "# Use modules (user, file, template) rather than shell/command and it is idempotent by construction."

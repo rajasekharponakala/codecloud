@@ -1,0 +1,73 @@
+id: postgres-basics
+title: "PostgreSQL: databases, roles, tables and backups"
+description: Administer a PostgreSQL server — create databases and least-privilege roles, write SQL, and take a logical backup.
+difficulty: beginner
+duration_minutes: 45
+tags: [databases, postgresql, sql]
+environment:
+  image: postgres:17
+  command: []
+  memory_mb: 512
+  cpus: 1
+  hostname: db01
+  env:
+    POSTGRES_PASSWORD: codecloud-admin
+    PGUSER: postgres
+  ready_check: pg_isready -h 127.0.0.1 -U postgres
+  ready_timeout_seconds: 90
+tasks:
+  - id: psql-quiz
+    type: quiz
+    prompt: In `psql`, which meta-command lists databases?
+    options: ["\\dt", "\\l", "\\du", "\\c"]
+    answer: 1
+  - id: database
+    type: task
+    prompt: Create a database `shop` and a login role `app` with password `app-pass` that owns it.
+    check: |
+      [ "$(psql -tAc "SELECT pg_get_userbyid(datdba) FROM pg_database WHERE datname='shop'")" = "app" ] || { echo "database shop does not exist or is not owned by app"; exit 1; }
+      [ "$(psql -tAc "SELECT rolcanlogin FROM pg_roles WHERE rolname='app'")" = "t" ] || { echo "role app cannot log in"; exit 1; }
+      PGPASSWORD=app-pass psql -h 127.0.0.1 -U app -d shop -tAc 'SELECT 1' >/dev/null 2>&1 || { echo "app cannot log in to shop with password app-pass"; exit 1; }
+    solution: |
+      psql -c "CREATE ROLE app LOGIN PASSWORD 'app-pass'"
+      psql -c "CREATE DATABASE shop OWNER app"
+  - id: table
+    type: task
+    prompt: |
+      As `app`, in `shop`, create a table `orders` with columns `id` (auto-incrementing primary
+      key), `customer` (text, not null), `total` (`numeric(10,2)`) and `created_at` (timestamptz,
+      default now()), then insert three orders whose totals add up to `100.00`.
+    check: |
+      q() { PGPASSWORD=app-pass psql -h 127.0.0.1 -U app -d shop -tAc "$1" 2>/dev/null; }
+      [ "$(q "SELECT tableowner FROM pg_tables WHERE tablename='orders'")" = "app" ] || { echo "table orders does not exist or is not owned by app"; exit 1; }
+      [ "$(q "SELECT count(*) FROM orders")" = "3" ] || { echo "orders does not have exactly 3 rows"; exit 1; }
+      [ "$(q "SELECT sum(total) FROM orders")" = "100.00" ] || { echo "totals do not add up to 100.00"; exit 1; }
+      [ "$(q "SELECT is_nullable FROM information_schema.columns WHERE table_name='orders' AND column_name='customer'")" = "NO" ] || { echo "customer must be NOT NULL"; exit 1; }
+      q "SELECT 1 FROM information_schema.table_constraints WHERE table_name='orders' AND constraint_type='PRIMARY KEY'" | grep -q 1 || { echo "orders has no primary key"; exit 1; }
+    solution: |
+      PGPASSWORD=app-pass psql -h 127.0.0.1 -U app -d shop <<'SQL'
+      CREATE TABLE orders (
+        id bigserial PRIMARY KEY,
+        customer text NOT NULL,
+        total numeric(10,2),
+        created_at timestamptz DEFAULT now()
+      );
+      INSERT INTO orders (customer, total) VALUES ('ada', 25.00), ('linus', 30.50), ('grace', 44.50);
+      SQL
+  - id: readonly
+    type: task
+    prompt: Create a login role `analyst` (password `read-only`) that can `SELECT` from `orders` but cannot insert into it.
+    check: |
+      q() { PGPASSWORD=read-only psql -h 127.0.0.1 -U analyst -d shop -tAc "$1" 2>&1; }
+      q "SELECT count(*) FROM orders" | grep -qx 3 || { echo "analyst cannot read orders"; exit 1; }
+      q "INSERT INTO orders (customer, total) VALUES ('x', 1)" | grep -q 'permission denied' || { echo "analyst can write to orders"; exit 1; }
+    solution: |
+      psql -c "CREATE ROLE analyst LOGIN PASSWORD 'read-only'"
+      PGPASSWORD=app-pass psql -h 127.0.0.1 -U app -d shop -c "GRANT SELECT ON orders TO analyst"
+  - id: backup
+    type: task
+    prompt: Take a logical backup of `shop` in custom format to `/root/shop.dump`.
+    check: |
+      [ -s /root/shop.dump ] || { echo "/root/shop.dump does not exist"; exit 1; }
+      pg_restore -l /root/shop.dump 2>/dev/null | grep -q 'TABLE public orders' || { echo "shop.dump is not a custom-format dump containing orders"; exit 1; }
+    solution: pg_dump -Fc -d shop -f /root/shop.dump

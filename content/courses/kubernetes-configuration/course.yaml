@@ -1,0 +1,15 @@
+id: kubernetes-configuration
+title: "Kubernetes: Application Configuration"
+description: ConfigMaps, Secrets, resource requests and limits, and health probes for production-ready workloads.
+level: intermediate
+category: kubernetes
+tags: [kubernetes, configmap, secret, probes, cka, ckad]
+duration_hours: 3
+lessons:
+  - id: config-and-secrets
+    title: ConfigMaps and Secrets
+    file: lessons/01-config-and-secrets.md
+  - id: resources-and-probes
+    title: Resources, QoS and health probes
+    file: lessons/02-resources-and-probes.md
+    lab: k8s-config

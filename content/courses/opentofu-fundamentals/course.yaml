@@ -1,0 +1,18 @@
+id: opentofu-fundamentals
+title: Infrastructure as Code with OpenTofu
+description: Declare infrastructure in HCL and manage its lifecycle with OpenTofu, the open-source, Terraform-compatible tool.
+level: intermediate
+category: iac
+tags: [opentofu, terraform, hcl, iac]
+duration_hours: 4
+lessons:
+  - id: iac-concepts
+    title: Infrastructure as Code and the OpenTofu workflow
+    file: lessons/01-iac-concepts.md
+  - id: hcl
+    title: Variables, outputs and state
+    file: lessons/02-hcl.md
+    lab: opentofu-basics
+  - id: modules
+    title: Providers, modules and remote state
+    file: lessons/03-modules.md
