@@ -1,5 +1,5 @@
 # AWS CLI pointed at Moto, an open-source local emulator of AWS APIs. No AWS account needed.
-FROM python:3.13-slim
+FROM python:3.14-slim
 RUN pip install --no-cache-dir "awscli>=1.40" "moto[server]>=5.1" \
  && apt-get update && apt-get install -y --no-install-recommends curl jq less nano vim \
  && rm -rf /var/lib/apt/lists/*
