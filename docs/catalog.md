@@ -95,6 +95,7 @@ LTI 1.3 tool integration, which is a possible next step.
 | `lab-images.yml` | push to `content/images/**` · **weekly, Mon 04:23 UTC** · manual | builds the shared lab images for amd64 and arm64 and pushes them to `ghcr.io/<owner>/codecloud-labs/<image>`. The weekly rebuild picks up base-image security fixes |
 | `edx-sync.yml` | **weekly, Sun 05:37 UTC** · manual | refreshes `content/external/edx.json` from edX and opens a pull request when it changed |
 | `olx-export.yml` | push to `content/**` · release · manual | exports all courses as Open edX archives, uploads them as artifacts, and attaches them to releases |
+| `video.yml` | manual · release | renders the launch video with /brag. It boots CodeCloud with real labs, records every feature, and composes and encodes the video. It uploads the artifact, opens a PR updating `docs/assets/codecloud-demo.mp4`, and attaches the video to releases |
 | `dependabot.yml` | weekly | npm, GitHub Actions and Dockerfile base-image updates |
 
 Setup notes:

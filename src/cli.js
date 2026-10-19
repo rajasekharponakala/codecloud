@@ -11,6 +11,7 @@ function usage() {
 
 Commands:
   validate                 Validate every course and lab under the content directory
+  prepare <lab-id>...      Pull or build the images of the given labs (pre-warms a lab host)
   test-lab <lab-id> [--solve]
                            Provision the lab in Docker, run each task's check, and with
                            --solve run each solution first (author smoke test), then clean up
@@ -65,6 +66,14 @@ try {
   if (command === 'validate') {
     const { courses, labs } = loadContent(config.contentDir);
     console.log(`ok: ${courses.size} courses, ${labs.size} labs`);
+  } else if (command === 'prepare' && args.length) {
+    const { labs } = loadContent(config.contentDir);
+    const runtime = new DockerRuntime(config.docker);
+    for (const id of args) {
+      const lab = labs.get(id);
+      if (!lab) throw new Error(`unknown lab "${id}"`);
+      console.log(`${id}: ${await runtime.ensureImage(lab)}`);
+    }
   } else if (command === 'test-lab' && args[0]) {
     await testLab(args[0], args.includes('--solve'));
   } else {

@@ -27,6 +27,7 @@ product: the lab lifecycle and the grading contract.
 | Course catalog from edX | Open edX Course API | AGPL-3.0 platform, public API | Public, unauthenticated listing on every Open edX instance | scraping edx.org (fragile), Discovery API (needs credentials) |
 | Course export to Open edX | OLX + [tar](https://github.com/isaacs/node-tar) | ISC | OLX is Open edX's native import format | SCORM packages (lossy for problems) |
 | Scheduled and heavy jobs | GitHub Actions, [create-pull-request](https://github.com/peter-evans/create-pull-request), Docker build-push actions | MIT | Runs next to the code. Matrix builds, cron schedules and GHCR are built in | self-hosted Forgejo Actions (same workflow syntax) |
+| Launch video | [/brag](https://github.com/latent-spaces/brag) workflow, [Playwright](https://playwright.dev), [FFmpeg](https://ffmpeg.org), Inter + JetBrains Mono via [Fontsource](https://fontsource.org) | MIT, Apache-2.0, LGPL/GPL, OFL-1.1 | brag gives the story and creative rules. Playwright records and renders real UI frame by frame, and FFmpeg encodes and mixes | screen-recording by hand (not reproducible), Hyperframes (the full /brag path) |
 | Tests | [Vitest](https://vitest.dev), [ws](https://github.com/websockets/ws) | MIT | Fast ESM-native runner and a WebSocket client | node:test |
 
 All dependencies are actively maintained, widely adopted, permissively licensed and had no

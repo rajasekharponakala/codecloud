@@ -1,0 +1,84 @@
+# Renders the CodeCloud launch video with the /brag workflow (https://github.com/latent-spaces/brag):
+# boots CodeCloud with real lab containers, records every feature with Playwright, composes the
+# footage frame by frame, synthesizes the soundtrack, and encodes it with FFmpeg.
+# The result is uploaded as an artifact, proposed for docs/assets/ in a pull request (so the README
+# shows the latest video) and attached to releases.
+name: Launch video
+
+on:
+  workflow_dispatch:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: launch-video
+  cancel-in-progress: true
+
+jobs:
+  video:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Install Chromium, FFmpeg and fonts
+        run: |
+          npx playwright install --with-deps chromium
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends ffmpeg fonts-inter
+      - name: Sync edX courses for the catalog scenes (not committed)
+        continue-on-error: true
+        run: node scripts/sync-edx.js
+      - name: Pre-pull the lab images shown in the video
+        run: node src/cli.js prepare linux-files linux-processes docker-basics kubernetes-pods
+      - name: Start CodeCloud
+        run: |
+          CODECLOUD_SESSION_SECRET=$(openssl rand -hex 32) CODECLOUD_DATA_DIR="$RUNNER_TEMP/codecloud" \
+            nohup node src/server.js > "$RUNNER_TEMP/server.log" 2>&1 &
+          for _ in $(seq 1 30); do curl -fs http://localhost:8080/healthz && exit 0; sleep 1; done
+          cat "$RUNNER_TEMP/server.log"; exit 1
+      - name: Build the video
+        env:
+          BASE_URL: http://localhost:8080
+        run: node video/build.mjs --publish
+      - name: Server log
+        if: failure()
+        run: cat "$RUNNER_TEMP/server.log"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: codecloud-launch-video
+          path: |
+            brag-output/brag.mp4
+            brag-output/brag.jpg
+            brag-output/brag-plan.md
+            brag-output/share-copy.txt
+            brag-output/work/stills/
+      - name: Attach to release
+        if: github.event_name == 'release'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.event.release.tag_name }}
+        run: |
+          cp brag-output/brag.mp4 codecloud-demo.mp4
+          gh release upload "$TAG" codecloud-demo.mp4 --clobber
+      - uses: peter-evans/create-pull-request@v8
+        with:
+          branch: automation/launch-video
+          delete-branch: true
+          commit-message: "Update launch video"
+          title: "Update launch video"
+          body: |
+            Re-rendered `docs/assets/codecloud-demo.mp4` and its poster with the /brag workflow
+            (`video/build.mjs`). Review stills are in the workflow artifact.
+          labels: automation
+          add-paths: |
+            docs/assets/codecloud-demo.mp4
+            docs/assets/codecloud-demo.jpg

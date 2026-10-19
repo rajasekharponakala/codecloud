@@ -4,7 +4,13 @@ An open-source, self-hostable **hands-on DevOps lab platform**, in the style of 
 courses with short lessons, auto-graded labs that give every learner a real Linux machine,
 Docker engine or Kubernetes cluster in the browser, and free-form playgrounds.
 
-![A CodeCloud lab: tasks on the left, a live terminal on the right](docs/assets/lab.png)
+[![Watch the CodeCloud launch video: catalog, real Linux, Docker and Kubernetes labs, auto-grading, edX and CI automation](docs/assets/codecloud-demo.jpg)](docs/assets/codecloud-demo.mp4)
+
+▶ **[Watch the 75-second tour](docs/assets/codecloud-demo.mp4)**. It covers the catalog, learning paths,
+real Linux, Docker and Kubernetes labs, auto-grading, playgrounds, edX in and out, and the CI that keeps
+it all working. Every shot is the real product; the video is rebuilt by a
+[GitHub workflow](.github/workflows/video.yml) using [/brag](https://github.com/latent-spaces/brag)
+(see [video/](video/README.md)).
 
 * **Real environments, not simulators.** Each lab session is a disposable container:
   Ubuntu, Docker-in-Docker, or a single-node Kubernetes cluster (k3s).
@@ -70,6 +76,15 @@ The lab format is documented in [docs/architecture.md](docs/architecture.md#auth
 node scripts/sync-edx.js                                          # refresh edX courses in the catalog
 CODECLOUD_PUBLIC_URL=https://labs.example.org node scripts/export-olx.js   # Open edX course archives
 ```
+
+## Launch video
+
+```bash
+BASE_URL=http://localhost:8080 npm run video   # needs a running server, Docker, Playwright Chromium and FFmpeg
+```
+
+Output goes to `brag-output/`. Run the *Launch video* workflow to re-render it in CI and open a PR
+that updates the video above.
 
 ## Development
 

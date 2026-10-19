@@ -56,7 +56,10 @@ h1 { font-size: 26px; margin: 0 0 6px; }
 .lessons li { padding: 10px 0; border-bottom: 1px solid var(--border); display: flex; gap: 10px; align-items: center; }
 .lesson { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 8px 24px 20px; }
 
-.lab { display: grid; grid-template-columns: minmax(320px, 420px) 1fr; height: calc(100vh - 53px); }
+/* The lab fills the viewport below the top bar; only the task list scrolls, never the page. */
+body:has(main.wide) { height: 100vh; overflow: hidden; display: flex; flex-direction: column; }
+main.wide { flex: 1; min-height: 0; width: 100%; }
+.lab { display: grid; grid-template-columns: minmax(320px, 420px) 1fr; grid-template-rows: minmax(0, 1fr); height: 100%; }
 .tasks { overflow-y: auto; border-right: 1px solid var(--border); background: var(--surface); padding: 16px; display: flex; flex-direction: column; gap: 12px; }
 .lab-head { display: flex; justify-content: space-between; gap: 8px; align-items: center; flex-wrap: wrap; }
 .timer { font-variant-numeric: tabular-nums; }
@@ -71,6 +74,7 @@ h1 { font-size: 26px; margin: 0 0 6px; }
 .terminal .xterm { height: 100%; }
 .status { padding: 40px; text-align: center; }
 @media (max-width: 800px) {
+  body:has(main.wide) { height: auto; overflow: visible; display: block; }
   .lab { grid-template-columns: 1fr; height: auto; }
   .terminal { height: 60vh; }
 }
