@@ -2,7 +2,7 @@
 FROM rhysd/actionlint:1.7.12 AS actionlint
 FROM mikefarah/yq:4.54.1 AS yq
 
-FROM ubuntu:24.04
+FROM ubuntu:25.10
 RUN apt-get update \
  && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
       bash-completion ca-certificates cron curl dnsutils git iproute2 iputils-ping jq less lsof make \
